@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import PageHeader from "../components/PageHeader";
-import { API_BASE_URL } from "../config";
+import { API_BASE_URL } from "../../config"; // ✅ Correct import
 
 type ActivityEvent = {
   id: string;

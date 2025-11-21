@@ -1,4 +1,3 @@
-import React from "react";
 
 const scrollToSection = (sectionId: string) => {
   if (typeof document === "undefined") return;

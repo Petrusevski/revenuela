@@ -7,7 +7,6 @@ import {
   LogOut, 
   Settings, 
   User, 
-  Check 
 } from "lucide-react";
 
 interface TopbarProps {
