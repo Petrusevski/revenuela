@@ -4,7 +4,7 @@ import { prisma } from "../db";
 const router = Router();
 
 const STAGE_BUCKETS = {
-  prospecting: ["new", "cold", "prospect", "prospecting", "manual"], // Added 'manual' & 'new'
+  prospecting: ["new", "cold", "prospect", "prospecting", "manual"],
   engaged: ["engaged", "reply", "responded", "opened", "active"],
   meeting: ["meeting", "demo", "call", "scheduled"],
   proposal: ["proposal", "negotiation", "quote"],
@@ -64,7 +64,6 @@ router.get("/", async (req: Request, res: Response) => {
       .map((row) => ({
         id: row.leadSource!.toLowerCase().replace(/\s+/g, "_"),
         source: row.leadSource!,
-        outbound: null,
         imports: row._count._all,
       }));
 
@@ -72,14 +71,13 @@ router.get("/", async (req: Request, res: Response) => {
     const recentLeads = await prisma.lead.findMany({
       where: { workspaceId },
       orderBy: { createdAt: "desc" },
-      include: { account: true, contact: true },
+      include: { contact: true },
       take: 5,
     });
 
     const recentJourneys = recentLeads.map((lead) => ({
       id: lead.id,
       status: lead.status,
-      accountName: lead.account?.name ?? null,
       contactName: lead.contact ? `${lead.contact.firstName} ${lead.contact.lastName}` : null,
       createdAt: lead.createdAt.toISOString(),
     }));
@@ -87,8 +85,6 @@ router.get("/", async (req: Request, res: Response) => {
     res.json({
       stages: Object.values(stageMap),
       prospectingImports,
-      toolPerformance: [], // Empty for now until sequence data exists
-      revenueSources: [],  // Empty until Deals exist
       recentJourneys,
     });
 

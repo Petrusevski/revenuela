@@ -1,12 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import PageHeader from "../components/PageHeader";
 import StatCard from "../components/StatCard";
-import { API_BASE_URL } from "../config";
+import { API_BASE_URL } from "../../config";
 import { Loader2 } from "lucide-react";
 
 const API_BASE = API_BASE_URL;
 
-// --- TYPES ---
 type StageId = "prospecting" | "engaged" | "meeting" | "proposal" | "won" | "lost";
 
 type Stage = {
@@ -18,30 +17,12 @@ type Stage = {
 type ProspectingImport = {
   id: string;
   source: string;
-  outbound: string | null;
   imports: number;
-};
-
-type ToolPerformance = {
-  id: string;
-  name: string;
-  stage: string;
-  replyRate: number;
-  meetingRate: number;
-  winRate: number;
-  leadsInfluenced: number;
-  customersWon: number;
-};
-
-type RevenueSource = {
-  label: string;
-  value: number;
 };
 
 type RecentJourney = {
   id: string;
   status: string;
-  accountName: string | null;
   contactName: string | null;
   createdAt: string;
 };
@@ -49,8 +30,6 @@ type RecentJourney = {
 type DashboardResponse = {
   stages: Stage[];
   prospectingImports: ProspectingImport[];
-  toolPerformance: ToolPerformance[];
-  revenueSources: RevenueSource[];
   recentJourneys: RecentJourney[];
 };
 
@@ -84,7 +63,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // 1. FETCH WORKSPACE ID
+  // 1. Fetch Workspace ID
   useEffect(() => {
     async function getWs() {
       const token = localStorage.getItem("revenuela_token");
@@ -105,7 +84,7 @@ export default function DashboardPage() {
     getWs();
   }, []);
 
-  // 2. FETCH DASHBOARD DATA
+  // 2. Fetch Dashboard Data
   useEffect(() => {
     if (!workspaceId) return;
 
@@ -132,14 +111,12 @@ export default function DashboardPage() {
     fetchDashboard();
   }, [workspaceId]);
 
-  // Loading State
   if (loading && !data) {
     return <div className="p-10 flex justify-center text-slate-500"><Loader2 className="animate-spin mr-2" /> Loading dashboard...</div>;
   }
 
   if (!workspaceId) return <div className="p-10 text-slate-400">Please log in to view your dashboard.</div>;
 
-  // Compute Derived Data
   const stages = data?.stages ?? [];
   const totalLeads = stages.reduce((sum, s) => sum + s.count, 0);
   const stagePieBg = buildStagePieGradient(stages, totalLeads);
@@ -156,12 +133,7 @@ export default function DashboardPage() {
 
   const prospectingImports = data?.prospectingImports ?? [];
   const totalImports = prospectingImports.reduce((sum, i) => sum + i.imports, 0);
-  const revenueSources = data?.revenueSources ?? [];
-  const maxRevenue = revenueSources.length ? Math.max(...revenueSources.map((r) => r.value || 0)) : 1;
-  const toolPerformance = data?.toolPerformance ?? [];
   const recentJourneys = data?.recentJourneys ?? [];
-
-  const formatCurrency = (value: number) => `€${value.toLocaleString("de-DE", { maximumFractionDigits: 0 })}`;
 
   return (
     <div>
@@ -172,7 +144,6 @@ export default function DashboardPage() {
 
       {error && <div className="mt-4 p-3 bg-rose-900/20 border border-rose-800 text-rose-200 rounded-lg text-sm">{error}</div>}
 
-      {/* KPI CARDS */}
       <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6 mt-6">
         <StatCard
           label="Revenuela IDs in universe"
@@ -200,16 +171,13 @@ export default function DashboardPage() {
         />
       </section>
 
-      {/* MAIN GRID */}
       <section className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-        
-        {/* FUNNEL CHART */}
         <div className="lg:col-span-2 rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
           <h2 className="text-sm font-semibold text-slate-100 mb-1">GTM funnel by stage</h2>
           <p className="text-xs text-slate-400 mb-4">Real-time lead progression based on manual status or CRM sync.</p>
 
           <div className="space-y-4">
-            {stages.map((stage, index) => {
+            {stages.map((stage) => {
               const maxCount = stages.reduce((max, s) => Math.max(max, s.count), 0) || 1;
               const width = `${(stage.count / maxCount) * 100}%`;
               return (
@@ -231,7 +199,6 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* PIE CHART */}
         <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5 flex flex-col">
           <h2 className="text-sm font-semibold text-slate-100 mb-1">Lead distribution</h2>
           <p className="text-xs text-slate-400 mb-6">Where your universe currently lives.</p>
@@ -256,10 +223,8 @@ export default function DashboardPage() {
         </div>
       </section>
 
-      {/* BOTTOM SECTION: RECENT ACTIVITY & SOURCES */}
       <section className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
          
-         {/* Imports Source */}
          <div className="lg:col-span-2 rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
             <h2 className="text-sm font-semibold text-slate-100 mb-4">Where prospects enter Revenuela</h2>
             <div className="space-y-3">
@@ -284,7 +249,6 @@ export default function DashboardPage() {
             </div>
          </div>
 
-         {/* Recent IDs */}
          <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
             <h2 className="text-sm font-semibold text-slate-100 mb-4">Recent Journeys</h2>
             <div className="space-y-3">

@@ -1,8 +1,6 @@
-import React, { useState, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { useEffect, useState } from "react";import { motion, AnimatePresence } from "framer-motion";
 import { 
   CreditCard, 
-  BarChart3, 
   Database,
   Search,
   Mail,
@@ -15,7 +13,7 @@ import {
   ShieldCheck,
   Clock,
   TrendingUp,
-  ArrowUpRight
+  
 } from "lucide-react";
 import Header from "../components/Header";
 import Footer from "../components/Footer";

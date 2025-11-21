@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import PageHeader from "../components/PageHeader";
 import DataTable from "../components/DataTable";
-import { API_BASE_URL } from "../config";
+import { API_BASE_URL } from "../../config"; // ✅ Correct import
 import { Zap, Check, X, Loader2, Plus, UserPlus, AlertCircle } from "lucide-react";
 
 // --- TYPES ---

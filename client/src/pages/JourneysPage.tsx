@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import PageHeader from "../components/PageHeader";
-import { API_BASE_URL } from "../config";
+import { API_BASE_URL } from "../../config"; // ✅ Correct import
 import { 
   Database, Mail, Briefcase, CreditCard, Zap, CheckCircle2, 
-  XCircle, Clock, ArrowRight, Layers, Loader2, Search
+  XCircle, Clock, Layers, Loader2, Search
 } from "lucide-react";
 
 // --- TYPES ---
@@ -24,7 +24,6 @@ type JourneysApiResponse = {
 };
 
 const API_BASE = API_BASE_URL;
-const WORKSPACE_ID = "demo-workspace-1"; 
 
 // --- VISUAL CONFIG ---
 const TOOL_CONFIG: Record<string, { icon: any; color: string; bg: string; border: string }> = {

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import PageHeader from "../components/PageHeader";
 import StatCard from "../components/StatCard";
-import { API_BASE_URL } from "../config";
+import { API_BASE_URL } from "../../config";
 
 type ToolPerf = {
   id: string;
