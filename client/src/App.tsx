@@ -21,10 +21,13 @@ import CareersPage from "./pages/CareersPage";
 import BlogPage from "./pages/BlogPage";
 import PrivacyPage from "./pages/PrivacyPage";
 import TermsPage from "./pages/TermsPage";
-import HowItWorksPage from "./pages/HowItWorksPage";
 import DashboardsKpisPage from "./pages/DashboardsKpisPage";
 import UseCasesPage from "./pages/UseCasesPage";
 import WhyRevenuelaVsSheetsPage from "./pages/WhyRevenuelaVsSheetsPage";
+import HowItWorksPage from './pages/HowItWorksPage';
+import GTMStackPage from './pages/GTMStackPage';
+import PricingPage from './pages/PricingPage';
+
 
 
 function App() {
@@ -45,6 +48,9 @@ function App() {
         <Route path="/privacy" element={<PrivacyPage />} />
         <Route path="/terms" element={<TermsPage />} />
         <Route path="/how-it-works" element={<HowItWorksPage />} />
+        <Route path="/gtm-stack" element={<GTMStackPage />} />
+        <Route path="/pricing" element={<PricingPage />} />
+
         <Route path="/dashboards-kpis" element={<DashboardsKpisPage />} />
         <Route path="/use-cases" element={<UseCasesPage />} />
         <Route
