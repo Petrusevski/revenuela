@@ -1,3 +1,4 @@
+import { Fingerprint } from "lucide-react"; // Added import
 
 export default function Footer() {
   return (
@@ -6,8 +7,9 @@ export default function Footer() {
         {/* Brand blurb */}
         <div>
           <div className="flex items-center gap-2 mb-2">
-            <div className="h-7 w-7 rounded-2xl bg-gradient-to-br from-indigo-500 via-fuchsia-500 to-sky-400 flex items-center justify-center text-[10px] font-bold">
-              R
+            {/* UPDATED LOGO */}
+            <div className="h-7 w-7 rounded-lg bg-gradient-to-br from-indigo-500/20 to-purple-500/20 flex items-center justify-center text-indigo-400 ring-1 ring-indigo-500/40">
+              <Fingerprint size={16} />
             </div>
             <div className="leading-tight">
               <div className="text-xs font-semibold text-slate-50">

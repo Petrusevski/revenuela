@@ -9,6 +9,7 @@ import {
   Activity,
   Layers,
   Zap,
+  Fingerprint, // Added Import
 } from "lucide-react";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
@@ -110,9 +111,12 @@ const CentralHub = () => (
     className="relative z-20 h-24 w-24 rounded-full border border-slate-700 bg-slate-900 flex flex-col items-center justify-center shadow-2xl shadow-indigo-500/10 shrink-0"
   >
     <div className="absolute inset-0 rounded-full bg-gradient-to-br from-indigo-500/20 via-fuchsia-500/20 to-sky-400/20 blur-md animate-pulse" />
-    <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-indigo-500 via-fuchsia-500 to-sky-400 flex items-center justify-center text-slate-50 font-bold text-lg mb-1 shadow-inner">
-      R
+    
+    {/* UPDATED LOGO CONTAINER */}
+    <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-indigo-500/20 to-purple-500/20 flex items-center justify-center text-indigo-400 ring-1 ring-indigo-500/40 shadow-inner mb-1">
+      <Fingerprint size={24} />
     </div>
+    
     <div className="text-[9px] font-mono text-slate-400 uppercase tracking-wider">
       ID Engine
     </div>
@@ -333,14 +337,14 @@ export default function HowItWorksPage() {
                 </p>
               </motion.div>
             </div>
-<section className="py-24 bg-slate-950">
-  <div className="mx-auto max-w-6xl px-4 mb-12 text-center">
-     <h2 className="text-3xl font-bold mb-4">The Journey of a Record</h2>
-     <p className="text-slate-400">Watch how Revenuela standardizes chaos into a unified thread.</p>
-  </div>
-  
-  <DataLifecycleVertical />
-</section>
+            <section className="py-24 bg-slate-950">
+              <div className="mx-auto max-w-6xl px-4 mb-12 text-center">
+                <h2 className="text-3xl font-bold mb-4">The Journey of a Record</h2>
+                <p className="text-slate-400">Watch how Revenuela standardizes chaos into a unified thread.</p>
+              </div>
+              
+              <DataLifecycleVertical />
+            </section>
             <div className="mt-20 p-8 rounded-3xl border border-slate-800 bg-gradient-to-b from-slate-900/50 to-slate-950/50 text-center relative overflow-hidden">
               <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-indigo-500 to-transparent opacity-50" />
               <h2 className="text-2xl font-semibold mb-4">

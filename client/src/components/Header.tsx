@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { Fingerprint } from 'lucide-react';
 
 export default function Header() {
   return (
@@ -6,8 +7,8 @@ export default function Header() {
       <div className="mx-auto max-w-6xl px-4 py-3 flex items-center justify-between gap-4">
         {/* Logo */}
         <Link to="/" className="flex items-center gap-2 shrink-0">
-          <div className="h-8 w-8 rounded-2xl bg-gradient-to-br from-indigo-500 via-fuchsia-500 to-sky-400 flex items-center justify-center text-xs font-bold">
-            R
+          <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-indigo-500/20 to-purple-500/20 flex items-center justify-center text-indigo-400 ring-1 ring-indigo-500/40">
+            <Fingerprint size={18} />
           </div>
           <div className="leading-tight">
             <div className="text-sm font-semibold">Revenuela</div>
