@@ -4,13 +4,15 @@
   "scripts": {
     "dev": "concurrently \"npm run dev --prefix client\" \"npm run dev --prefix server\"",
     "dev:client": "npm run dev --prefix client",
-    "dev:server": "npm run dev --prefix server"
+    "dev:server": "npm run dev --prefix server",
+    "postinstall": "cd client && npm install && cd ../server && npm install && npx prisma generate",
+    "build": "echo 'Building handled by vercel.json'"
   },
   "devDependencies": {
     "concurrently": "^9.0.0"
   },
   "dependencies": {
     "axios": "^1.13.2",
-    "openai": "^6.9.0"
+    "openai": "^4.28.0"
   }
 }
