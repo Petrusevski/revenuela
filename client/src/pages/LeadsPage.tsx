@@ -182,6 +182,7 @@ const ImportLeadsModal = ({ workspaceId, onClose, onSave }: { workspaceId: strin
                 <p className="text-xs text-emerald-200 leading-relaxed">
                   <strong>Note:</strong> To connect a sheet, please share it with our service account email: 
                   <br />
+                  {/* ✅ UPDATED EMAIL ADDRESS BELOW */}
                   <code className="bg-black/30 px-1 py-0.5 rounded text-emerald-400 select-all">sync-bot@hypelow.iam.gserviceaccount.com</code>
                 </p>
               </div>
@@ -216,7 +217,6 @@ const ImportLeadsModal = ({ workspaceId, onClose, onSave }: { workspaceId: strin
 };
 
 // --- COMPONENT: Create Journey Modal ---
-// (Unchanged from your code)
 const CreateJourneyModal = ({ lead, workspaceId, onClose, onSave }: { lead: LeadRow; workspaceId: string; onClose: () => void; onSave: () => void; }) => {
   const [loading, setLoading] = useState(true);
   const [integrations, setIntegrations] = useState<IntegrationItem[]>([]);
@@ -332,7 +332,6 @@ const CreateJourneyModal = ({ lead, workspaceId, onClose, onSave }: { lead: Lead
 };
 
 // --- COMPONENT: New Lead Modal ---
-// (Unchanged)
 const NewLeadModal = ({ workspaceId, onClose, onSave }: { workspaceId: string, onClose: () => void, onSave: () => void }) => {
   const [form, setForm] = useState({ firstName: "", lastName: "", email: "", company: "", title: "" });
   const [saving, setSaving] = useState(false);
@@ -387,7 +386,7 @@ export default function LeadsPage() {
 
   const [selectedLead, setSelectedLead] = useState<LeadRow | null>(null);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [isImportModalOpen, setIsImportModalOpen] = useState(false); // ✅ Added state
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false); 
 
   const [ownerFilter, setOwnerFilter] = useState<string>("all");
   const [sourceFilter, setSourceFilter] = useState<string>("all");
@@ -439,7 +438,7 @@ export default function LeadsPage() {
     setIsCreateModalOpen(true);
   };
 
-  const openImportModal = () => { // ✅ Added function
+  const openImportModal = () => { 
     if (!workspaceId) { alert("Error: No Workspace ID found."); return; }
     setIsImportModalOpen(true);
   }
@@ -466,7 +465,6 @@ export default function LeadsPage() {
           {loading && <Loader2 className="animate-spin text-slate-500" size={16} />}
         </div>
         
-        {/* ✅ UPDATED BUTTONS */}
         <div className="flex items-center gap-3">
           <button onClick={openImportModal} className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-sm font-medium border border-slate-700 transition-all hover:text-white">
             <Upload size={16} /> Import
