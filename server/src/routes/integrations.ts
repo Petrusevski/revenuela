@@ -1,87 +1,261 @@
-import { google } from "googleapis";
+import { Router, Request, Response } from "express";
+import { prisma } from "../db";
+import axios from "axios";
+import Stripe from "stripe";
+import { decrypt } from "../utils/encryption"; 
 
-// SCOPES required to read spreadsheets
-const SCOPES = ["https://www.googleapis.com/auth/spreadsheets.readonly"];
+const router = Router();
 
-/**
- * Extract Spreadsheet ID from a full URL.
- * e.g., https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit...
- * -> 1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms
- */
-function extractSpreadsheetId(url: string): string | null {
-  const match = url.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
-  return match ? match[1] : null;
-}
+type ProviderStatus = "connected" | "not_connected";
 
-/**
- * Authenticate with Google using Service Account Credentials
- * stored in Environment Variables (for security).
- */
-function getAuthClient() {
-  // You should store your entire Service Account JSON in one env var or separate fields
-  // For Vercel/Production, it's best to base64 encode the JSON file and store it in GOOGLE_SERVICE_KEY_BASE64
-  
-  const credentials = process.env.GOOGLE_SERVICE_KEY_BASE64 
-    ? JSON.parse(Buffer.from(process.env.GOOGLE_SERVICE_KEY_BASE64, 'base64').toString())
-    : require("../../service-account.json"); // Fallback for local dev
+type AuthData = {
+  apiKey?: string;
+  accessToken?: string;
+  tableId?: string; 
+  [key: string]: any;
+};
 
-  // ✅ FIXED: Pass configuration object instead of multiple arguments
-  return new google.auth.JWT({
-    email: credentials.client_email,
-    key: credentials.private_key,
-    scopes: SCOPES,
-  });
-}
-
-export async function fetchSheetData(sheetUrl: string) {
-  const spreadsheetId = extractSpreadsheetId(sheetUrl);
-  if (!spreadsheetId) {
-    throw new Error("Invalid Google Sheet URL. Could not find ID.");
+// Helper to extract ID from URL
+function extractClayID(input: string): { viewId: string | null, tableId: string | null } {
+  if (!input) return { viewId: null, tableId: null };
+  const cleanInput = input.trim();
+  if (cleanInput.startsWith("http")) {
+    const viewMatch = cleanInput.match(/(gv_[a-zA-Z0-9]+)/);
+    const tableMatch = cleanInput.match(/(t_[a-zA-Z0-9]+)/);
+    return { viewId: viewMatch ? viewMatch[0] : null, tableId: tableMatch ? tableMatch[0] : null };
   }
+  if (cleanInput.startsWith("gv_")) return { viewId: cleanInput, tableId: null };
+  if (cleanInput.startsWith("t_")) return { viewId: null, tableId: cleanInput };
+  return { viewId: null, tableId: cleanInput };
+}
 
-  const auth = getAuthClient();
-  const sheets = google.sheets({ version: "v4", auth });
-
+const parseAuthData = (raw?: string | null): AuthData | null => {
+  if (!raw) return null;
   try {
-    // 1. Get the spreadsheet metadata to find the first sheet name
-    const meta = await sheets.spreadsheets.get({ spreadsheetId });
-    const firstSheetName = meta.data.sheets?.[0]?.properties?.title;
+    const decrypted = decrypt(raw);
+    return JSON.parse(decrypted);
+  } catch (err) {
+    try { return JSON.parse(raw!); } catch (e) { return null; }
+  }
+};
 
-    if (!firstSheetName) throw new Error("No sheets found in this spreadsheet.");
+// Return type definition for checkers
+type CheckerResult = { success: boolean; message?: string };
 
-    // 2. Read rows from the first sheet
-    const response = await sheets.spreadsheets.values.get({
-      spreadsheetId,
-      range: firstSheetName, // automatic range (reads all data)
-    });
+const providerCheckers: Record<
+  string,
+  (auth: AuthData | null) => Promise<CheckerResult>
+> = {
+  stripe: async (auth) => {
+    if (!auth?.apiKey) return { success: false, message: "Missing API Key" };
+    try {
+      const stripe = new Stripe(auth.apiKey.trim(), { apiVersion: "2024-06-20" as any });
+      await stripe.balance.retrieve();
+      return { success: true };
+    } catch (e: any) { return { success: false, message: e.message }; }
+  },
 
-    const rows = response.data.values;
-    if (!rows || rows.length === 0) {
-      throw new Error("No data found in the sheet.");
+  hubspot: async (auth) => {
+    if (!auth?.accessToken) return { success: false, message: "Missing Token" };
+    try {
+      await axios.get("https://api.hubapi.com/crm/v3/objects/contacts?limit=1", {
+        headers: { Authorization: `Bearer ${auth.accessToken.trim()}` },
+      });
+      return { success: true };
+    } catch (e: any) { return { success: false, message: e.message }; }
+  },
+
+  clay: async (auth) => {
+    if (!auth?.apiKey || !auth?.tableId) return { success: false, message: "Missing API Key or Table ID" };
+    
+    const apiKey = auth.apiKey.trim();
+    const { viewId, tableId } = extractClayID(auth.tableId);
+    const headers = { "X-API-Key": apiKey };
+
+    // 1. Try View
+    if (viewId) {
+      try {
+        await axios.get(`https://api.clay.com/v3/views/${viewId}/records?limit=1`, { headers });
+        return { success: true };
+      } catch (e: any) { 
+        if (e.response?.status === 401 || e.response?.status === 403) {
+           return { success: false, message: `Clay Permission Error: ${e.response.data.message || "Unauthorized"}` };
+        }
+      }
     }
 
-    // 3. Parse Headers vs Data
-    const headers = rows[0].map((h) => h.toLowerCase().trim());
-    const dataRows = rows.slice(1);
+    // 2. Try Table
+    if (tableId) {
+      try {
+        await axios.get(`https://api.clay.com/v3/tables/${tableId}/records?limit=1`, { headers });
+        return { success: true };
+      } catch (e: any) {
+        if (e.response?.status === 401 || e.response?.status === 403) {
+           return { success: false, message: `Clay Permission Error: ${e.response.data.message || "Unauthorized"}` };
+        }
+      }
+    }
 
-    // 4. Map to objects
-    const leads = dataRows.map((row) => {
-      const lead: Record<string, string> = {};
-      headers.forEach((header, index) => {
-        // Map common header names to your Schema fields
-        if (header.includes("name")) lead.name = row[index];
-        if (header.includes("first")) lead.firstName = row[index];
-        if (header.includes("last")) lead.lastName = row[index];
-        if (header.includes("email")) lead.email = row[index];
-        if (header.includes("company")) lead.company = row[index];
-        if (header.includes("title") || header.includes("role")) lead.title = row[index];
-      });
-      return lead;
-    });
+    // 3. General Check
+    try {
+      await axios.get(`https://api.clay.com/v3/workspaces`, { headers });
+      return { success: true };
+    } catch (e: any) {
+      const msg = e.response?.data?.message || e.message;
+      return { success: false, message: `Clay Error: ${msg}` };
+    }
+  },
+};
 
-    return leads;
-  } catch (error: any) {
-    console.error("Google Sheets API Error:", error.message);
-    throw new Error("Failed to read Google Sheet. Make sure you shared the sheet with the service account email.");
+// --- ROUTES ---
+
+router.get("/", async (req: Request, res: Response) => {
+  const workspaceId = String(req.query.workspaceId || "");
+  if (!workspaceId) return res.status(400).json({ error: "workspaceId required" });
+  const integrations = await prisma.integrationConnection.findMany({ where: { workspaceId } });
+  return res.json(integrations.map((i) => ({
+    provider: i.provider,
+    status: i.status as ProviderStatus,
+    hasAuth: !!i.authData,
+  })));
+});
+
+router.post("/:provider/check", async (req: Request, res: Response) => {
+  const { provider } = req.params;
+  const { workspaceId } = req.body;
+
+  if (!workspaceId) return res.status(400).json({ error: "workspaceId is required" });
+
+  let conn = await prisma.integrationConnection.findFirst({ where: { workspaceId, provider } });
+  const authData = parseAuthData(conn?.authData ?? null);
+  
+  let result: CheckerResult = { success: false, message: "Unknown provider" };
+  
+  if (providerCheckers[provider]) {
+    result = await providerCheckers[provider](authData);
+  } else {
+    // Fallback for providers without strict checkers
+    if (authData && Object.values(authData).some(v => v && typeof v === 'string' && v.trim().length > 0)) {
+        result = { success: true };
+    } else {
+        result = { success: false, message: "No credentials found" };
+    }
   }
-}
+
+  const newStatus: ProviderStatus = result.success ? "connected" : "not_connected";
+
+  if (!conn) {
+    conn = await prisma.integrationConnection.create({
+      data: { workspaceId, provider, status: newStatus, authData: null },
+    });
+  } else if (conn.status !== newStatus) {
+    await prisma.integrationConnection.update({
+      where: { id: conn.id },
+      data: { status: newStatus },
+    });
+  }
+
+  if (!result.success) {
+    return res.status(400).json({ 
+      provider, 
+      status: newStatus, 
+      error: result.message 
+    });
+  }
+
+  return res.json({ provider, status: newStatus, hasAuth: !!conn.authData });
+});
+
+router.post("/:provider/disconnect", async (req: Request, res: Response) => {
+  const { provider } = req.params;
+  const { workspaceId } = req.body;
+  if (!workspaceId) return res.status(400).json({ error: "workspaceId is required" });
+  const conn = await prisma.integrationConnection.findFirst({ where: { workspaceId, provider } });
+  if (conn) {
+    await prisma.integrationConnection.update({ where: { id: conn.id }, data: { status: "not_connected", authData: null } });
+  }
+  return res.json({ provider, status: "not_connected", hasAuth: false });
+});
+
+router.post("/:provider/sync", async (req: Request, res: Response) => {
+  const { provider } = req.params;
+  const { workspaceId } = req.body;
+  if (provider !== 'clay') return res.status(400).json({ error: "Sync only supported for Clay." });
+
+  const conn = await prisma.integrationConnection.findFirst({ where: { workspaceId, provider } });
+  const auth = parseAuthData(conn?.authData);
+
+  if (!auth || !auth.apiKey || !auth.tableId) return res.status(400).json({ error: "Missing credentials." });
+
+  try {
+    const apiKey = auth.apiKey.trim();
+    const { viewId, tableId } = extractClayID(auth.tableId);
+    const headers = { "X-API-Key": apiKey };
+    let records: any[] = [];
+
+    if (viewId) {
+      try {
+        const res = await axios.get(`https://api.clay.com/v3/views/${viewId}/records?limit=50`, { headers });
+        records = res.data.records || res.data || [];
+      } catch (e) {}
+    }
+    if (records.length === 0 && tableId) {
+      try {
+        const res = await axios.get(`https://api.clay.com/v3/tables/${tableId}/records?limit=50`, { headers });
+        records = res.data.records || res.data || [];
+      } catch (e) {}
+    }
+
+    if (records.length === 0) return res.status(400).json({ error: "Could not fetch records. Check ID or permissions." });
+
+    let importedCount = 0;
+    for (const record of records) {
+      const fields = record.fields || record; 
+      const email = fields["Email"] || fields["email"] || fields["Work Email"];
+      const linkedin = fields["LinkedIn"] || fields["LinkedIn URL"] || fields["Profile Link"];
+      const name = fields["Name"] || fields["Full Name"] || "Unknown";
+
+      if (email || linkedin) {
+        const [firstName, ...lastNameParts] = (typeof name === 'string' ? name : 'Unknown').split(" ");
+        const lastName = lastNameParts.join(" ");
+
+        await prisma.contact.upsert({
+          where: { id: `clay-${record.id}` },
+          update: { firstName, lastName, email: email || undefined, linkedinUrl: linkedin || undefined },
+          create: {
+            id: `clay-${record.id}`,
+            workspaceId,
+            email: email || null,
+            linkedinUrl: linkedin || null,
+            firstName,
+            lastName,
+            status: "prospect",
+          }
+        });
+        
+        const contact = await prisma.contact.findUnique({ where: { id: `clay-${record.id}` } });
+        if(contact) {
+            const existingLead = await prisma.lead.findFirst({ where: { contactId: contact.id }});
+            if(!existingLead) {
+                await prisma.lead.create({
+                    data: { 
+                      workspaceId, 
+                      contactId: contact.id, 
+                      status: "new", 
+                      email: contact.email || "", // Populate flat field
+                      fullName: `${firstName} ${lastName}`,
+                      source: "Clay" // ✅ Fixed: leadSource -> source
+                    }
+                });
+            }
+        }
+        importedCount++;
+      }
+    }
+    return res.json({ success: true, imported: importedCount });
+  } catch (error: any) {
+    return res.status(500).json({ error: "Sync failed", details: error.message });
+  }
+});
+
+export default router;
