@@ -182,7 +182,7 @@ const ImportLeadsModal = ({ workspaceId, onClose, onSave }: { workspaceId: strin
                 <p className="text-xs text-emerald-200 leading-relaxed">
                   <strong>Note:</strong> To connect a sheet, please share it with our service account email: 
                   <br />
-                  <code className="bg-black/30 px-1 py-0.5 rounded text-emerald-400 select-all">sync-bot@revenuela-app.iam.gserviceaccount.com</code>
+                  <code className="bg-black/30 px-1 py-0.5 rounded text-emerald-400 select-all">sync-bot@hypelow.iam.gserviceaccount.com</code>
                 </p>
               </div>
 
