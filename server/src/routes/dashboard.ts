@@ -52,18 +52,18 @@ router.get("/", async (req: Request, res: Response) => {
       stageMap[bucket].count += 1;
     }
 
-    // 2) Prospecting Imports
+    // 2) Prospecting Imports (Fixed: leadSource -> source)
     const importsBySource = await prisma.lead.groupBy({
-      by: ["leadSource"],
+      by: ["source"],
       where: { workspaceId },
       _count: { _all: true },
     });
 
     const prospectingImports = importsBySource
-      .filter((row) => row.leadSource !== null)
+      .filter((row) => row.source !== null)
       .map((row) => ({
-        id: row.leadSource!.toLowerCase().replace(/\s+/g, "_"),
-        source: row.leadSource!,
+        id: row.source!.toLowerCase().replace(/\s+/g, "_"),
+        source: row.source!,
         imports: row._count._all,
       }));
 
@@ -78,7 +78,7 @@ router.get("/", async (req: Request, res: Response) => {
     const recentJourneys = recentLeads.map((lead) => ({
       id: lead.id,
       status: lead.status,
-      contactName: lead.contact ? `${lead.contact.firstName} ${lead.contact.lastName}` : null,
+      contactName: lead.contact ? `${lead.contact.firstName} ${lead.contact.lastName}` : (lead.fullName || "Unknown"),
       createdAt: lead.createdAt.toISOString(),
     }));
 

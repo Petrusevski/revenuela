@@ -25,12 +25,12 @@ function getAuthClient() {
     ? JSON.parse(Buffer.from(process.env.GOOGLE_SERVICE_KEY_BASE64, 'base64').toString())
     : require("../../service-account.json"); // Fallback for local dev
 
-  return new google.auth.JWT(
-    credentials.client_email,
-    undefined,
-    credentials.private_key,
-    SCOPES
-  );
+  // ✅ FIXED: Pass configuration object instead of multiple arguments
+  return new google.auth.JWT({
+    email: credentials.client_email,
+    key: credentials.private_key,
+    scopes: SCOPES,
+  });
 }
 
 export async function fetchSheetData(sheetUrl: string) {
