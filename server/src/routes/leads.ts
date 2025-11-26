@@ -7,11 +7,52 @@ import csv from "csv-parser";
 import { Readable } from "stream";
 
 const router = Router();
-
-// Configure Multer for CSV Uploads (Memory Storage)
 const upload = multer({ storage: multer.memoryStorage() });
 
-// ── 1. GET ALL LEADS ─────────────────────────────────────────────────────────
+// ── HELPER: Process & Upsert Leads ───────────────────────────────────────────
+async function processSheetLeads(workspaceId: string, rawLeads: any[]) {
+  let count = 0;
+  for (const row of rawLeads) {
+    if (!row.email) continue;
+    
+    const fullName = row.name || `${row.firstName || ''} ${row.lastName || ''}`.trim();
+    // Check if lead exists to preserve ID, otherwise gen new one
+    const existing = await prisma.lead.findFirst({ where: { workspaceId, email: row.email }});
+    const customId = existing?.id || `RVN-${uuidv4().split("-")[0].toUpperCase()}`;
+
+    // UPSERT: Updates existing leads (new columns) or creates new ones
+    await prisma.lead.upsert({
+      where: { 
+        // We need a unique constraint. If your schema doesn't have @@unique([workspaceId, email]),
+        // we use the ID if found, or a fallback unique lookup.
+        // Ideally, schema should have: @@unique([workspaceId, email])
+        id: customId 
+      },
+      update: {
+        fullName: fullName || undefined,
+        company: row.company || undefined,
+        title: row.title || undefined,
+        // Add other fields here if you map them in googleSheets.ts (e.g. phone)
+      },
+      create: {
+        id: customId,
+        workspaceId,
+        email: row.email,
+        fullName: fullName || "Unknown",
+        company: row.company || "",
+        title: row.title || "",
+        source: "Google Sheets",
+        status: "new"
+      }
+    });
+    count++;
+  }
+  return count;
+}
+
+// ── ROUTES ───────────────────────────────────────────────────────────────────
+
+// 1. GET ALL LEADS
 router.get("/", async (req: Request, res: Response) => {
   const workspaceId = String(req.query.workspaceId || "");
   if (!workspaceId) return res.status(400).json({ error: "workspaceId is required" });
@@ -20,24 +61,15 @@ router.get("/", async (req: Request, res: Response) => {
     const leads = await prisma.lead.findMany({
       where: { workspaceId },
       orderBy: { createdAt: "desc" },
-      include: { contact: true, account: true }, // Fetch relations if they exist
+      include: { contact: true, account: true },
       take: 500,
     });
 
     const apiLeads = leads.map((lead) => {
       const contact = lead.contact;
       const account = lead.account;
-
-      // Smart Name Logic: Prefer 'fullName' (Import), fallback to Contact relation (Manual)
-      const name = lead.fullName || 
-                   (contact ? `${contact.firstName} ${contact.lastName}`.trim() : "") || 
-                   lead.email || 
-                   "Unnamed Lead";
-
-      // Smart Company Logic
+      const name = lead.fullName || (contact ? `${contact.firstName} ${contact.lastName}`.trim() : "") || lead.email || "Unnamed Lead";
       const company = lead.company || account?.name || "";
-
-      // Smart Title Logic
       const title = lead.title || contact?.jobTitle || "";
 
       return {
@@ -47,10 +79,10 @@ router.get("/", async (req: Request, res: Response) => {
         company: company,
         source: lead.source || "Unknown",
         score: lead.fitScore ?? lead.leadScore ?? 0,
-        owner: "Unassigned", // Can be mapped to lead.ownerId if you add User relation later
+        owner: "Unassigned",
         status: lead.status,
         journeySteps: lead.journeySteps ? JSON.parse(lead.journeySteps) : null,
-        email: lead.email, // Useful for frontend
+        email: lead.email,
       };
     });
 
@@ -61,134 +93,36 @@ router.get("/", async (req: Request, res: Response) => {
   }
 });
 
-// ── 2. CREATE LEAD (MANUAL) ──────────────────────────────────────────────────
+// 2. CREATE LEAD (MANUAL)
 router.post("/", async (req: Request, res: Response) => {
   const { workspaceId, firstName, lastName, email, company, title } = req.body;
-
-  if (!workspaceId || !email) {
-    return res.status(400).json({ error: "Workspace ID and Email are required" });
-  }
+  if (!workspaceId || !email) return res.status(400).json({ error: "Required fields missing" });
 
   try {
     const fullName = `${firstName || ''} ${lastName || ''}`.trim() || email;
-
-    // A. Check/Create Contact (Maintain CRM consistency)
-    let contact = await prisma.contact.findFirst({
-      where: { workspaceId, email },
-    });
-
-    if (!contact) {
-      contact = await prisma.contact.create({
-        data: {
-          workspaceId,
-          firstName: firstName || "",
-          lastName: lastName || "",
-          email,
-          jobTitle: title || "",
-        }
-      });
-    }
-
-    // B. Check/Create Account
-    let accountId = null;
-    if (company) {
-      let account = await prisma.account.findFirst({
-        where: { workspaceId, name: company }
-      });
-      if (!account) {
-        account = await prisma.account.create({
-          data: { workspaceId, name: company }
-        });
-      }
-      accountId = account.id;
-    }
-
-    // C. Generate Custom ID (e.g., "RVN-A1B2")
     const customId = `RVN-${uuidv4().split("-")[0].toUpperCase()}`;
 
-    // D. Create Lead (Populating BOTH relations and flat fields)
     const lead = await prisma.lead.create({
       data: {
         id: customId,
         workspaceId,
-        email, // ✅ Mandatory flat field
-        fullName, // ✅ Flat field for display speed
+        email,
+        fullName,
         firstName,
         lastName,
         company,
         title,
-        contactId: contact.id, // ✅ Relation
-        accountId: accountId,  // ✅ Relation
         source: "Manual",
         status: "new"
       }
     });
-
     return res.json({ success: true, lead });
-
   } catch (error) {
-    console.error("Create lead error:", error);
     return res.status(500).json({ error: "Failed to create lead" });
   }
 });
 
-// ── 3. CSV UPLOAD ────────────────────────────────────────────────────────────
-router.post("/upload-csv", upload.single("file"), async (req: Request, res: Response) => {
-  if (!req.file) return res.status(400).json({ error: "No file uploaded" });
-  
-  const { workspaceId } = req.body;
-  if (!workspaceId) return res.status(400).json({ error: "Missing workspaceId" });
-
-  const results: any[] = [];
-  const stream = Readable.from(req.file.buffer.toString());
-
-  stream
-    .pipe(csv())
-    .on("data", (data) => results.push(data))
-    .on("end", async () => {
-      let successCount = 0;
-      
-      for (const row of results) {
-        // Flexible Column Mapping
-        const email = row["Email"] || row["email"] || row["E-mail"];
-        if (!email) continue; // Skip invalid rows
-
-        const firstName = row["First Name"] || row["firstName"] || "";
-        const lastName = row["Last Name"] || row["lastName"] || "";
-        const company = row["Company"] || row["company"] || row["Account"] || "";
-        const title = row["Title"] || row["title"] || row["Job Title"] || "";
-        const fullName = `${firstName} ${lastName}`.trim() || email;
-
-        // Custom ID for imports
-        const customId = `RVN-${uuidv4().split("-")[0].toUpperCase()}`;
-
-        try {
-          await prisma.lead.create({
-            data: {
-              id: customId,
-              workspaceId,
-              email,
-              fullName,
-              firstName,
-              lastName,
-              company,
-              title,
-              source: "CSV Import",
-              status: "new"
-              // Note: We skip creating Contact/Account relations here for bulk speed
-            }
-          });
-          successCount++;
-        } catch (e) {
-          // console.warn(`Duplicate skipped: ${email}`);
-        }
-      }
-
-      return res.json({ success: true, count: successCount });
-    });
-});
-
-// ── 4. GOOGLE SHEETS SYNC ────────────────────────────────────────────────────
+// 3. SYNC GSHEET (Initial Setup)
 router.post("/sync-gsheet", async (req: Request, res: Response) => {
   try {
     const { workspaceId, sheetUrl } = req.body;
@@ -197,57 +131,120 @@ router.post("/sync-gsheet", async (req: Request, res: Response) => {
     const rawLeads = await fetchSheetData(sheetUrl);
     if (rawLeads.length === 0) return res.status(400).json({ error: "Sheet is empty." });
 
-    let successCount = 0;
-    
-    for (const row of rawLeads) {
-      if (!row.email) continue;
-      const fullName = row.name || `${row.firstName || ''} ${row.lastName || ''}`.trim();
-      const customId = `RVN-${uuidv4().split("-")[0].toUpperCase()}`;
+    // A. Process Data
+    const count = await processSheetLeads(workspaceId, rawLeads);
 
-      try {
-        await prisma.lead.create({
-          data: {
-            id: customId,
-            workspaceId,
-            email: row.email,
-            fullName: fullName || "Unknown",
-            company: row.company || "",
-            title: row.title || "",
-            source: "Google Sheets",
-            status: "new"
-          }
-        });
-        successCount++;
-      } catch (e) { /* skip duplicate */ }
-    }
+    // B. SAVE CONNECTION (So we can refresh later)
+    await prisma.integrationConnection.upsert({
+      where: { 
+        // Assuming you might want 1 sheet per workspace for now, or add a unique constraint in schema on [workspaceId, provider]
+        // For now, we find first or create. Ideally schema needs @@unique([workspaceId, provider])
+        id: `gsheet-${workspaceId}` // Synthetic ID or rely on findFirst logic below if schema differs
+      },
+      update: {
+        authData: JSON.stringify({ sheetUrl }),
+        status: "connected",
+        updatedAt: new Date()
+      },
+      create: {
+        id: `gsheet-${workspaceId}`, // Ensure ID fits your schema type (CUID usually required, so let's use findFirst logic instead if this fails)
+        workspaceId,
+        provider: "google_sheets",
+        status: "connected",
+        authData: JSON.stringify({ sheetUrl })
+      }
+    });
 
-    return res.json({ success: true, count: successCount });
+    return res.json({ success: true, count });
   } catch (error: any) {
     console.error(error);
     return res.status(500).json({ error: error.message });
   }
 });
 
-// ── 5. UPDATE JOURNEY ────────────────────────────────────────────────────────
+// 4. REFRESH SYNC (The New Button)
+router.post("/sync-refresh", async (req: Request, res: Response) => {
+  const { workspaceId } = req.body;
+  if (!workspaceId) return res.status(400).json({ error: "Missing workspaceId" });
+
+  try {
+    // 1. Find the saved connection
+    const conn = await prisma.integrationConnection.findFirst({
+      where: { workspaceId, provider: "google_sheets" }
+    });
+
+    if (!conn || !conn.authData) {
+      return res.status(404).json({ error: "No Google Sheet connected yet." });
+    }
+
+    // 2. Get URL
+    const { sheetUrl } = JSON.parse(conn.authData);
+    if (!sheetUrl) return res.status(400).json({ error: "Saved connection missing URL." });
+
+    // 3. Fetch & Process
+    const rawLeads = await fetchSheetData(sheetUrl);
+    const count = await processSheetLeads(workspaceId, rawLeads);
+
+    // 4. Update timestamp
+    await prisma.integrationConnection.update({
+      where: { id: conn.id },
+      data: { updatedAt: new Date() }
+    });
+
+    return res.json({ success: true, count, message: `Synced ${count} rows from Google Sheet.` });
+
+  } catch (error: any) {
+    console.error("Refresh failed:", error);
+    return res.status(500).json({ error: "Failed to refresh sheet. " + error.message });
+  }
+});
+
+// 5. UPLOAD CSV
+router.post("/upload-csv", upload.single("file"), async (req: Request, res: Response) => {
+  if (!req.file || !req.body.workspaceId) return res.status(400).json({ error: "Missing file or workspaceId" });
+  const { workspaceId } = req.body;
+  const results: any[] = [];
+  
+  Readable.from(req.file.buffer.toString())
+    .pipe(csv())
+    .on("data", (data) => results.push(data))
+    .on("end", async () => {
+      let count = 0;
+      for (const row of results) {
+        const email = row["Email"] || row["email"];
+        if (!email) continue;
+        
+        const fullName = `${row["First Name"]||''} ${row["Last Name"]||''}`.trim() || email;
+        const customId = `RVN-${uuidv4().split("-")[0].toUpperCase()}`;
+
+        // Simple create for CSV (ignores duplicates)
+        try {
+          await prisma.lead.create({
+            data: {
+              id: customId, workspaceId, email, fullName,
+              firstName: row["First Name"], lastName: row["Last Name"],
+              company: row["Company"], title: row["Title"],
+              source: "CSV Import", status: "new"
+            }
+          });
+          count++;
+        } catch (e) {}
+      }
+      return res.json({ success: true, count });
+    });
+});
+
+// 6. UPDATE JOURNEY
 router.patch("/:id/journey", async (req: Request, res: Response) => {
   const { id } = req.params;
   const { steps } = req.body; 
-
-  if (!Array.isArray(steps)) {
-    return res.status(400).json({ error: "Steps must be an array" });
-  }
-
   try {
     const updated = await prisma.lead.update({
       where: { id },
-      data: {
-        journeySteps: JSON.stringify(steps),
-        status: "active" 
-      }
+      data: { journeySteps: JSON.stringify(steps), status: "active" }
     });
     return res.json({ success: true, leadId: updated.id });
   } catch (error) {
-    console.error("Failed to save journey:", error);
     return res.status(500).json({ error: "Failed to save journey" });
   }
 });

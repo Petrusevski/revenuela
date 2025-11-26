@@ -4,7 +4,7 @@ import DataTable from "../components/DataTable";
 import { API_BASE_URL } from "../../config";
 import { 
   Zap, Check, X, Loader2, Plus, UserPlus, AlertCircle, 
-  Upload, FileSpreadsheet, FileText, Download,
+  Upload, FileSpreadsheet, FileText, Download, RefreshCw,
   Mail, Building, Globe, ArrowRight, Map 
 } from "lucide-react";
 
@@ -20,7 +20,7 @@ type LeadRow = {
   owner: string;
   status: string;
   journeySteps?: string[]; 
-  email?: string; // Added for details view
+  email?: string;
 };
 
 type IntegrationItem = {
@@ -30,7 +30,7 @@ type IntegrationItem = {
 
 const API_BASE = API_BASE_URL;
 
-// --- COMPONENT: Lead Details Drawer (New) ---
+// --- COMPONENT: Lead Details Drawer ---
 
 const LeadDetailsDrawer = ({ lead, onClose }: { lead: LeadRow; onClose: () => void }) => {
   if (!lead) return null;
@@ -300,7 +300,6 @@ const ImportLeadsModal = ({ workspaceId, onClose, onSave }: { workspaceId: strin
                 <p className="text-xs text-emerald-200 leading-relaxed">
                   <strong>Note:</strong> To connect a sheet, please share it with our service account email: 
                   <br />
-                  {/* ✅ CORRECTED EMAIL: */}
                   <code className="bg-black/30 px-1 py-0.5 rounded text-emerald-400 select-all">sync-bot@hypelow.iam.gserviceaccount.com</code>
                 </p>
               </div>
@@ -505,17 +504,17 @@ export default function LeadsPage() {
   const [workspaceId, setWorkspaceId] = useState<string | null>(null);
 
   // Modal States
-  const [selectedLeadForJourney, setSelectedLeadForJourney] = useState<LeadRow | null>(null); // For "Start Journey"
-  const [viewLead, setViewLead] = useState<LeadRow | null>(null); // For "View Details" drawer
+  const [selectedLeadForJourney, setSelectedLeadForJourney] = useState<LeadRow | null>(null);
+  const [viewLead, setViewLead] = useState<LeadRow | null>(null);
   
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false); 
+  const [isRefreshing, setIsRefreshing] = useState(false); // ✅ REFRESH STATE
 
   const [ownerFilter, setOwnerFilter] = useState<string>("all");
   const [sourceFilter, setSourceFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
 
-  // Load Workspace
   useEffect(() => {
     async function getWs() {
       const token = localStorage.getItem("revenuela_token");
@@ -529,7 +528,6 @@ export default function LeadsPage() {
     getWs();
   }, []);
 
-  // Load Leads
   const fetchLeads = async () => {
     if (!workspaceId) return;
     setLoading(true);
@@ -544,6 +542,35 @@ export default function LeadsPage() {
   };
 
   useEffect(() => { fetchLeads(); }, [workspaceId]);
+
+  // ✅ HANDLE REFRESH
+  const handleRefreshSource = async () => {
+    if (!workspaceId) return;
+    setIsRefreshing(true);
+    try {
+      const token = localStorage.getItem("revenuela_token");
+      const res = await fetch(`${API_BASE}/api/leads/sync-refresh`, {
+        method: "POST",
+        headers: { 
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}` 
+        },
+        body: JSON.stringify({ workspaceId }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Sync failed");
+      }
+      
+      await fetchLeads();
+      
+    } catch (e: any) {
+      alert(e.message || "Failed to refresh sources");
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
 
   const ownerOptions = useMemo(() => Array.from(new Set(leads.map(l => l.owner))).sort(), [leads]);
   const sourceOptions = useMemo(() => Array.from(new Set(leads.map(l => l.source))).sort(), [leads]);
@@ -589,6 +616,17 @@ export default function LeadsPage() {
         </div>
         
         <div className="flex items-center gap-3">
+          {/* ✅ REFRESH BUTTON */}
+          <button 
+            onClick={handleRefreshSource}
+            disabled={isRefreshing}
+            className="flex items-center gap-2 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-lg text-sm font-medium border border-slate-700 transition-all disabled:opacity-50"
+            title="Check connected sheets for new rows/columns"
+          >
+            <RefreshCw size={16} className={isRefreshing ? "animate-spin" : ""} />
+            {isRefreshing ? "Syncing..." : "Sync"}
+          </button>
+
           <button onClick={openImportModal} className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-sm font-medium border border-slate-700 transition-all hover:text-white">
             <Upload size={16} /> Import
           </button>
