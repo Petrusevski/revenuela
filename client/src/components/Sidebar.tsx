@@ -38,10 +38,14 @@ const navGroups = [
 
 export default function Sidebar() {
   return (
-    <aside className="w-64 border-r border-slate-800/50 bg-slate-950 hidden md:flex md:flex-col h-screen sticky top-0">
+    // UPDATED CLASSES:
+    // 1. Removed 'hidden' (so it shows on mobile)
+    // 2. Removed 'sticky', 'top-0', 'h-screen' (AppLayout handles positioning now)
+    // 3. Added 'h-full' to ensure it fills the mobile drawer
+    <aside className="w-full md:w-64 h-full flex flex-col bg-slate-950">
       
       {/* BRAND HEADER */}
-      <div className="h-16 flex items-center px-6 border-b border-slate-800/50 bg-slate-900/20">
+      <div className="h-16 flex items-center px-6 border-b border-slate-800/50 bg-slate-900/20 shrink-0">
         <div className="flex items-center gap-3">
           <div className="relative h-8 w-8 rounded-xl bg-gradient-to-br from-indigo-600 to-fuchsia-600 shadow-lg shadow-indigo-500/20 flex items-center justify-center">
              {/* Abstract Logo Icon */}
@@ -97,7 +101,7 @@ export default function Sidebar() {
       </nav>
 
       {/* FOOTER / WORKSPACE CARD */}
-      <div className="p-4 border-t border-slate-800/50 bg-slate-900/30">
+      <div className="p-4 border-t border-slate-800/50 bg-slate-900/30 shrink-0">
         <div className="flex items-center gap-3 p-2 rounded-lg hover:bg-slate-800/50 transition-colors cursor-pointer group">
           <div className="h-8 w-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-xs font-bold text-slate-300 group-hover:text-white group-hover:border-slate-600">
             DS
