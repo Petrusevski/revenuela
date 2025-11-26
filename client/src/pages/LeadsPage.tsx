@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState, useRef } from "react";
-import { useNavigate } from "react-router-dom"; // 👈 ADD THIS
+import { useNavigate } from "react-router-dom";
 import PageHeader from "../components/PageHeader";
 import DataTable from "../components/DataTable";
 import { API_BASE_URL } from "../../config";
 import { 
-  Zap, Check, X, Loader2, Plus, UserPlus, AlertCircle, 
-  Upload, FileSpreadsheet, FileText, Download, RefreshCw,
-  Mail, Building, Globe, ArrowRight, Map 
+  Zap, X, Loader2, Plus, UserPlus, AlertCircle, 
+  Upload, RefreshCw, Mail, Building, Globe, 
+  ArrowRight, Map, Share
 } from "lucide-react";
 
 // --- TYPES ---
@@ -22,6 +22,7 @@ type LeadRow = {
   status: string;
   journeySteps?: string[]; 
   email?: string;
+  linkedin?: string;
 };
 
 type IntegrationItem = {
@@ -34,18 +35,16 @@ const API_BASE = API_BASE_URL;
 // --- COMPONENT: Lead Details Drawer ---
 
 const LeadDetailsDrawer = ({ lead, onClose }: { lead: LeadRow; onClose: () => void }) => {
-  const navigate = useNavigate(); // 👈 Initialize hook
+  const navigate = useNavigate();
+
   if (!lead) return null;
 
   return (
     <div className="fixed inset-0 z-[100] flex justify-end">
-      {/* Backdrop */}
       <div className="absolute inset-0 bg-black/20 backdrop-blur-sm" onClick={onClose} />
       
-      {/* Drawer */}
       <div className="relative w-full max-w-md bg-slate-950 border-l border-slate-800 h-full shadow-2xl animate-in slide-in-from-right duration-300 flex flex-col">
         
-        {/* Header */}
         <div className="p-6 border-b border-slate-800 flex items-start justify-between bg-slate-900/50">
           <div>
             <h2 className="text-xl font-bold text-white">{lead.name}</h2>
@@ -56,10 +55,8 @@ const LeadDetailsDrawer = ({ lead, onClose }: { lead: LeadRow; onClose: () => vo
           </button>
         </div>
 
-        {/* Content */}
         <div className="flex-1 overflow-y-auto p-6 space-y-8">
-          
-          {/* Status Section */}
+          {/* Status */}
           <div className="space-y-3">
              <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Status</h3>
              {lead.journeySteps && lead.journeySteps.length > 0 ? (
@@ -77,7 +74,7 @@ const LeadDetailsDrawer = ({ lead, onClose }: { lead: LeadRow; onClose: () => vo
              )}
           </div>
 
-          {/* Contact Info */}
+          {/* Details */}
           <div className="space-y-4">
             <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Contact Details</h3>
             
@@ -112,7 +109,7 @@ const LeadDetailsDrawer = ({ lead, onClose }: { lead: LeadRow; onClose: () => vo
             </div>
           </div>
 
-          {/* Active Journey Visualization */}
+          {/* Journey Path */}
           {lead.journeySteps && lead.journeySteps.length > 0 && (
             <div className="space-y-4">
                <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
@@ -121,14 +118,11 @@ const LeadDetailsDrawer = ({ lead, onClose }: { lead: LeadRow; onClose: () => vo
                <div className="relative pl-4 border-l-2 border-slate-800 space-y-6">
                   {lead.journeySteps.map((step, idx) => (
                     <div key={idx} className="relative">
-                      {/* Timeline Dot */}
                       <div className="absolute -left-[21px] top-1 h-3 w-3 rounded-full bg-indigo-500 border-2 border-slate-950 ring-2 ring-indigo-500/20" />
-                      
                       <div className="bg-slate-900/50 p-3 rounded-xl border border-slate-800">
                         <span className="text-xs text-indigo-400 font-bold mb-1 block">Step {idx + 1}</span>
                         <span className="text-sm font-medium text-white">{step}</span>
                       </div>
-                      
                       {idx < (lead.journeySteps?.length || 0) - 1 && (
                          <div className="absolute left-1/2 -bottom-4 text-slate-600">
                            <ArrowRight size={14} className="rotate-90" />
@@ -141,12 +135,147 @@ const LeadDetailsDrawer = ({ lead, onClose }: { lead: LeadRow; onClose: () => vo
           )}
         </div>
         
-        {/* Footer Actions */}
         <div className="p-6 border-t border-slate-800 bg-slate-900/50">
-           <button onClick={() => navigate(`/leads/${lead.id}`)}className="w-full py-2.5 rounded-xl bg-slate-100 text-slate-950 font-bold text-sm hover:bg-white transition-colors">
+           <button 
+             onClick={() => navigate(`/leads/${lead.id}`)}
+             className="w-full py-2.5 rounded-xl bg-slate-100 text-slate-950 font-bold text-sm hover:bg-white transition-colors"
+           >
              View Full Profile
            </button>
         </div>
+      </div>
+    </div>
+  );
+};
+
+// --- COMPONENT: Export to HeyReach Modal ---
+
+const ExportHeyReachModal = ({ workspaceId, onClose }: { workspaceId: string; onClose: () => void }) => {
+  const [step, setStep] = useState<"connect" | "select" | "loading">("loading");
+  const [apiKey, setApiKey] = useState("");
+  const [campaigns, setCampaigns] = useState<any[]>([]);
+  const [selectedCampaign, setSelectedCampaign] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
+
+  const getHeaders = () => ({ 
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${localStorage.getItem("revenuela_token")}` 
+  });
+
+  useEffect(() => {
+    const checkStatus = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/integrations/heyreach/campaigns?workspaceId=${workspaceId}`, { headers: getHeaders() });
+        if (res.ok) {
+          const data = await res.json();
+          setCampaigns(data.campaigns);
+          setStep("select");
+        } else {
+          setStep("connect");
+        }
+      } catch (e) { setStep("connect"); }
+    };
+    checkStatus();
+  }, []);
+
+  const handleConnect = async () => {
+    setLoading(true);
+    try {
+      await fetch(`${API_BASE}/api/integrations/heyreach/check`, {
+        method: "POST",
+        headers: getHeaders(),
+        body: JSON.stringify({ workspaceId, apiKey })
+      });
+      
+      const res = await fetch(`${API_BASE}/api/integrations/heyreach/campaigns?workspaceId=${workspaceId}`, { headers: getHeaders() });
+      if (!res.ok) throw new Error("Could not fetch campaigns. Check API Key.");
+      const data = await res.json();
+      setCampaigns(data.campaigns);
+      setStep("select");
+    } catch (e: any) { setError("Connection failed. Invalid API Key?"); }
+    finally { setLoading(false); }
+  };
+
+  const handleExport = async () => {
+    if (!selectedCampaign) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(`${API_BASE}/api/integrations/heyreach/export`, {
+        method: "POST",
+        headers: getHeaders(),
+        body: JSON.stringify({ workspaceId, campaignId: selectedCampaign }) 
+      });
+      
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Export failed");
+      
+      setSuccessMsg(`Successfully sent ${data.count} leads to HeyReach!`);
+      setTimeout(onClose, 2000);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm">
+      <div className="w-full max-w-md rounded-2xl border border-slate-700 bg-slate-900 p-6 shadow-2xl">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-lg font-semibold text-white">Export to HeyReach</h2>
+          <button onClick={onClose}><X className="text-slate-500 hover:text-white" size={20} /></button>
+        </div>
+
+        {successMsg ? (
+          <div className="p-4 bg-emerald-500/10 text-emerald-400 rounded-xl text-center font-medium border border-emerald-500/20">
+            {successMsg}
+          </div>
+        ) : step === "connect" ? (
+          <div className="space-y-4">
+            <p className="text-sm text-slate-400">Enter your HeyReach API Key to connect.</p>
+            <input 
+              type="password" 
+              placeholder="hr_..." 
+              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white"
+              value={apiKey}
+              onChange={e => setApiKey(e.target.value)}
+            />
+            {error && <p className="text-xs text-rose-400">{error}</p>}
+            <button 
+              onClick={handleConnect} 
+              disabled={loading || !apiKey}
+              className="w-full py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-medium disabled:opacity-50"
+            >
+              {loading ? "Connecting..." : "Connect & Fetch Campaigns"}
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <p className="text-sm text-slate-400">Select a campaign to add these leads to:</p>
+            <div className="max-h-60 overflow-y-auto space-y-2">
+              {campaigns.length === 0 ? (
+                <p className="text-xs text-slate-500 italic">No active campaigns found in HeyReach.</p>
+              ) : campaigns.map((c: any) => (
+                <label key={c.id} className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${selectedCampaign === c.id ? 'bg-indigo-500/10 border-indigo-500' : 'bg-slate-800 border-slate-700'}`}>
+                  <input type="radio" name="campaign" className="hidden" checked={selectedCampaign === c.id} onChange={() => setSelectedCampaign(c.id)} />
+                  <div className={`w-4 h-4 rounded-full border ${selectedCampaign === c.id ? 'border-indigo-500 bg-indigo-500' : 'border-slate-500'}`} />
+                  <span className="text-sm text-slate-200">{c.name || "Untitled Campaign"}</span>
+                </label>
+              ))}
+            </div>
+            {error && <p className="text-xs text-rose-400">{error}</p>}
+            <button 
+              onClick={handleExport} 
+              disabled={loading || !selectedCampaign}
+              className="w-full py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-medium disabled:opacity-50"
+            >
+              {loading ? "Exporting..." : "Export Leads"}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -180,8 +309,7 @@ const ImportLeadsModal = ({ workspaceId, onClose, onSave }: { workspaceId: strin
         body: formData,
       });
 
-      if (!res.ok) throw new Error("Failed to upload CSV. Ensure headers match template.");
-      
+      if (!res.ok) throw new Error("Failed to upload CSV.");
       onSave();
       onClose();
     } catch (err: any) {
@@ -201,15 +329,11 @@ const ImportLeadsModal = ({ workspaceId, onClose, onSave }: { workspaceId: strin
       const token = localStorage.getItem("revenuela_token");
       const res = await fetch(`${API_BASE}/api/leads/sync-gsheet`, {
         method: "POST",
-        headers: { 
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}` 
-        },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ workspaceId, sheetUrl }),
       });
 
-      if (!res.ok) throw new Error("Failed to sync Sheet. Is it public or shared with our service account?");
-      
+      if (!res.ok) throw new Error("Failed to sync Sheet.");
       onSave();
       onClose();
     } catch (err: any) {
@@ -222,8 +346,6 @@ const ImportLeadsModal = ({ workspaceId, onClose, onSave }: { workspaceId: strin
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm">
       <div className="w-full max-w-lg rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl animate-in fade-in zoom-in duration-200 overflow-hidden">
-        
-        {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-slate-800 bg-slate-900/50">
           <h2 className="text-lg font-semibold text-white flex items-center gap-2">
             <Upload className="text-indigo-400" size={20} /> Import Leads
@@ -231,220 +353,38 @@ const ImportLeadsModal = ({ workspaceId, onClose, onSave }: { workspaceId: strin
           <button onClick={onClose}><X className="text-slate-500 hover:text-white" size={20} /></button>
         </div>
 
-        {/* Tabs */}
         <div className="flex border-b border-slate-800">
-          <button 
-            onClick={() => setMode("csv")}
-            className={`flex-1 py-3 text-sm font-medium transition-colors flex items-center justify-center gap-2 ${mode === 'csv' ? 'bg-slate-800 text-white border-b-2 border-indigo-500' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'}`}
-          >
-            <FileText size={16} /> Upload CSV
-          </button>
-          <button 
-            onClick={() => setMode("gsheet")}
-            className={`flex-1 py-3 text-sm font-medium transition-colors flex items-center justify-center gap-2 ${mode === 'gsheet' ? 'bg-slate-800 text-white border-b-2 border-emerald-500' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'}`}
-          >
-            <FileSpreadsheet size={16} /> Google Sheets
-          </button>
+          <button onClick={() => setMode("csv")} className={`flex-1 py-3 text-sm font-medium ${mode === 'csv' ? 'bg-slate-800 text-white border-b-2 border-indigo-500' : 'text-slate-400'}`}>Upload CSV</button>
+          <button onClick={() => setMode("gsheet")} className={`flex-1 py-3 text-sm font-medium ${mode === 'gsheet' ? 'bg-slate-800 text-white border-b-2 border-emerald-500' : 'text-slate-400'}`}>Google Sheets</button>
         </div>
 
         <div className="p-6">
-          {error && (
-            <div className="mb-4 p-3 bg-rose-900/20 border border-rose-800 text-rose-200 rounded-lg text-xs flex items-center gap-2">
-              <AlertCircle size={14} /> {error}
-            </div>
-          )}
+          {error && <div className="mb-4 p-3 bg-rose-900/20 text-rose-200 rounded-lg text-xs flex items-center gap-2"><AlertCircle size={14} /> {error}</div>}
 
           {mode === "csv" ? (
             <form onSubmit={handleCsvUpload} className="space-y-4">
-              <div 
-                onClick={() => fileInputRef.current?.click()}
-                className="border-2 border-dashed border-slate-700 hover:border-indigo-500 hover:bg-slate-800/30 rounded-xl p-8 flex flex-col items-center justify-center cursor-pointer transition-all group"
-              >
-                <div className="h-12 w-12 rounded-full bg-slate-800 group-hover:bg-indigo-500/20 flex items-center justify-center mb-3 transition-colors">
-                  <Upload className="text-slate-400 group-hover:text-indigo-400" size={24} />
-                </div>
-                {file ? (
-                  <div className="text-center">
-                    <p className="text-sm font-medium text-white">{file.name}</p>
-                    <p className="text-xs text-slate-500 mt-1">{(file.size / 1024).toFixed(1)} KB</p>
-                  </div>
-                ) : (
-                  <div className="text-center">
-                    <p className="text-sm font-medium text-slate-300">Click to browse or drag file here</p>
-                    <p className="text-xs text-slate-500 mt-1">Supports .csv files</p>
-                  </div>
-                )}
-                <input 
-                  type="file" 
-                  ref={fileInputRef} 
-                  accept=".csv" 
-                  className="hidden" 
-                  onChange={(e) => e.target.files && setFile(e.target.files[0])} 
-                />
+              <div onClick={() => fileInputRef.current?.click()} className="border-2 border-dashed border-slate-700 hover:border-indigo-500 rounded-xl p-8 flex flex-col items-center justify-center cursor-pointer">
+                <Upload className="text-slate-400 mb-3" size={24} />
+                <p className="text-sm text-white">{file ? file.name : "Click to browse"}</p>
+                <input type="file" ref={fileInputRef} accept=".csv" className="hidden" onChange={(e) => e.target.files && setFile(e.target.files[0])} />
               </div>
-
-              <div className="flex items-center justify-between">
-                <a href="#" className="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-1">
-                  <Download size={12} /> Download template
-                </a>
-                <button 
-                  type="submit" 
-                  disabled={!file || uploading} 
-                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                >
-                  {uploading ? <Loader2 className="animate-spin" size={14} /> : "Upload File"}
-                </button>
-              </div>
+              <div className="flex justify-end"><button type="submit" disabled={!file || uploading} className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-semibold">{uploading ? "Uploading..." : "Upload File"}</button></div>
             </form>
           ) : (
             <form onSubmit={handleGSheetSync} className="space-y-4">
               <div className="bg-emerald-900/10 border border-emerald-900/30 p-4 rounded-lg">
                 <p className="text-xs text-emerald-200 leading-relaxed">
-                  <strong>Note:</strong> To connect a sheet, please share it with our service account email: 
-                  <br />
+                  <strong>Note:</strong> Share your sheet with: <br />
                   <code className="bg-black/30 px-1 py-0.5 rounded text-emerald-400 select-all">sync-bot@hypelow.iam.gserviceaccount.com</code>
                 </p>
               </div>
-
               <div>
                 <label className="block text-xs font-medium text-slate-400 mb-1">Google Sheet URL</label>
-                <input 
-                  type="url" 
-                  required
-                  placeholder="https://docs.google.com/spreadsheets/d/..."
-                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:border-emerald-500 outline-none placeholder-slate-600"
-                  value={sheetUrl}
-                  onChange={(e) => setSheetUrl(e.target.value)}
-                />
+                <input type="url" required className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white" value={sheetUrl} onChange={(e) => setSheetUrl(e.target.value)} />
               </div>
-
-              <div className="flex justify-end pt-2">
-                 <button 
-                  type="submit" 
-                  disabled={!sheetUrl || uploading} 
-                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                >
-                  {uploading ? <Loader2 className="animate-spin" size={14} /> : "Sync Sheet"}
-                </button>
-              </div>
+              <div className="flex justify-end"><button type="submit" disabled={!sheetUrl || uploading} className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-semibold">{uploading ? "Syncing..." : "Sync Sheet"}</button></div>
             </form>
           )}
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// --- COMPONENT: Create Journey Modal ---
-
-const CreateJourneyModal = ({ lead, workspaceId, onClose, onSave }: { lead: LeadRow; workspaceId: string; onClose: () => void; onSave: () => void; }) => {
-  const [loading, setLoading] = useState(true);
-  const [integrations, setIntegrations] = useState<IntegrationItem[]>([]);
-  const [selectedTools, setSelectedTools] = useState<string[]>([]);
-  const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    async function loadTools() {
-      try {
-        const token = localStorage.getItem("revenuela_token");
-        const res = await fetch(`${API_BASE}/api/integrations?workspaceId=${workspaceId}`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        const data = await res.json();
-        setIntegrations(data.filter((i: any) => i.status === 'connected'));
-        
-        const defaults = [lead.source];
-        if (data.some((i: any) => i.provider === 'hubspot' && i.status === 'connected')) defaults.push('HubSpot');
-        if (data.some((i: any) => i.provider === 'stripe' && i.status === 'connected')) defaults.push('Stripe');
-        
-        setSelectedTools(defaults);
-      } catch (e) {
-        console.error(e);
-      } finally {
-        setLoading(false);
-      }
-    }
-    loadTools();
-  }, [workspaceId, lead.source]);
-
-  const toggleTool = (name: string) => {
-    if (selectedTools.includes(name)) {
-      setSelectedTools(selectedTools.filter(t => t !== name));
-    } else {
-      setSelectedTools([...selectedTools, name]);
-    }
-  };
-
-  const handleSave = async () => {
-    setSaving(true);
-    try {
-      const token = localStorage.getItem("revenuela_token");
-      await fetch(`${API_BASE}/api/leads/${lead.id}/journey`, {
-        method: "PATCH",
-        headers: { 
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({ steps: selectedTools })
-      });
-      onSave();
-      onClose();
-    } catch (e) {
-      alert("Failed to create journey");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const formatName = (p: string) => p.charAt(0).toUpperCase() + p.slice(1);
-
-  return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="w-full max-w-md rounded-2xl border border-slate-700 bg-slate-900 p-6 shadow-2xl">
-        <div className="mb-4">
-          <h2 className="text-lg font-semibold text-white">Create Journey</h2>
-          <p className="text-sm text-slate-400">Select the active GTM stack for <span className="text-white">{lead.name}</span>.</p>
-        </div>
-
-        {loading ? (
-          <div className="py-8 flex justify-center"><Loader2 className="animate-spin text-indigo-500" /></div>
-        ) : (
-          <div className="space-y-3 mb-6">
-            <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Available Tools</div>
-            <label className="flex items-center gap-3 p-3 rounded-xl bg-slate-800/50 border border-slate-700/50 cursor-not-allowed opacity-70">
-              <div className="flex h-5 w-5 items-center justify-center rounded bg-indigo-600 text-white">
-                <Check size={12} />
-              </div>
-              <span className="text-sm font-medium text-slate-200">{lead.source} (Source)</span>
-            </label>
-            {integrations.length === 0 && (
-              <div className="text-sm text-rose-400 bg-rose-950/20 p-3 rounded-lg border border-rose-900/50">
-                No connected integrations found. Please connect tools in the Integrations page first.
-              </div>
-            )}
-            {integrations.map((tool) => {
-              const name = formatName(tool.provider);
-              const isSelected = selectedTools.includes(name);
-              if (name.toLowerCase() === lead.source.toLowerCase()) return null;
-              return (
-                <label key={tool.provider} className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${isSelected ? 'bg-indigo-500/10 border-indigo-500/50' : 'bg-slate-800/30 border-slate-700 hover:border-slate-600'}`}>
-                  <div className={`flex h-5 w-5 items-center justify-center rounded border transition-colors ${isSelected ? 'bg-indigo-500 border-indigo-500 text-white' : 'border-slate-600 bg-transparent'}`}>
-                    {isSelected && <Check size={12} />}
-                  </div>
-                  <input type="checkbox" className="hidden" checked={isSelected} onChange={() => toggleTool(name)} />
-                  <span className="text-sm font-medium text-slate-200">{name}</span>
-                </label>
-              );
-            })}
-          </div>
-        )}
-
-        <div className="flex justify-end gap-3">
-          <button onClick={onClose} className="px-4 py-2 text-sm text-slate-400 hover:text-white">Cancel</button>
-          <button onClick={handleSave} disabled={saving || loading} className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-semibold disabled:opacity-50">
-            {saving && <Loader2 className="animate-spin" size={14} />}
-            Start Journey
-          </button>
         </div>
       </div>
     </div>
@@ -452,7 +392,6 @@ const CreateJourneyModal = ({ lead, workspaceId, onClose, onSave }: { lead: Lead
 };
 
 // --- COMPONENT: New Lead Modal ---
-
 const NewLeadModal = ({ workspaceId, onClose, onSave }: { workspaceId: string, onClose: () => void, onSave: () => void }) => {
   const [form, setForm] = useState({ firstName: "", lastName: "", email: "", company: "", title: "" });
   const [saving, setSaving] = useState(false);
@@ -468,30 +407,86 @@ const NewLeadModal = ({ workspaceId, onClose, onSave }: { workspaceId: string, o
         body: JSON.stringify({ ...form, workspaceId })
       });
       if (res.ok) { onSave(); onClose(); } 
-      else { alert("Failed to create lead. Please check the console."); }
+      else { alert("Failed to create lead."); }
     } catch (err) { console.error(err); } finally { setSaving(false); }
   };
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="w-full max-w-md rounded-2xl border border-slate-700 bg-slate-900 p-6 shadow-2xl animate-in fade-in zoom-in duration-200">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-lg font-semibold text-white flex items-center gap-2"><UserPlus className="text-indigo-400" size={20} /> New Lead</h2>
-          <button onClick={onClose}><X className="text-slate-500 hover:text-white" size={20} /></button>
-        </div>
+      <div className="w-full max-w-md rounded-2xl border border-slate-700 bg-slate-900 p-6 shadow-2xl">
+        <h2 className="text-lg font-semibold text-white mb-6 flex items-center gap-2"><UserPlus size={20} /> New Lead</h2>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
-            <div><label className="block text-xs font-medium text-slate-400 mb-1">First Name</label><input required type="text" className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:border-indigo-500 outline-none" value={form.firstName} onChange={e => setForm({...form, firstName: e.target.value})} /></div>
-            <div><label className="block text-xs font-medium text-slate-400 mb-1">Last Name</label><input required type="text" className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:border-indigo-500 outline-none" value={form.lastName} onChange={e => setForm({...form, lastName: e.target.value})} /></div>
+            <input placeholder="First Name" required className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white" value={form.firstName} onChange={e => setForm({...form, firstName: e.target.value})} />
+            <input placeholder="Last Name" required className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white" value={form.lastName} onChange={e => setForm({...form, lastName: e.target.value})} />
           </div>
-          <div><label className="block text-xs font-medium text-slate-400 mb-1">Email</label><input required type="email" className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:border-indigo-500 outline-none" value={form.email} onChange={e => setForm({...form, email: e.target.value})} /></div>
-          <div><label className="block text-xs font-medium text-slate-400 mb-1">Company</label><input type="text" className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:border-indigo-500 outline-none" value={form.company} onChange={e => setForm({...form, company: e.target.value})} /></div>
-          <div><label className="block text-xs font-medium text-slate-400 mb-1">Job Title</label><input type="text" className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:border-indigo-500 outline-none" value={form.title} onChange={e => setForm({...form, title: e.target.value})} /></div>
-          <div className="flex justify-end gap-3 pt-4">
+          <input placeholder="Email" required type="email" className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white" value={form.email} onChange={e => setForm({...form, email: e.target.value})} />
+          <input placeholder="Company" className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white" value={form.company} onChange={e => setForm({...form, company: e.target.value})} />
+          <input placeholder="Job Title" className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white" value={form.title} onChange={e => setForm({...form, title: e.target.value})} />
+          <div className="flex justify-end gap-3">
             <button type="button" onClick={onClose} className="px-4 py-2 text-sm text-slate-400 hover:text-white">Cancel</button>
-            <button type="submit" disabled={saving} className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-semibold disabled:opacity-50">{saving ? <Loader2 className="animate-spin" size={14} /> : "Create Lead"}</button>
+            <button type="submit" disabled={saving} className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-semibold">{saving ? "Saving..." : "Create Lead"}</button>
           </div>
         </form>
+      </div>
+    </div>
+  );
+};
+
+// --- COMPONENT: Create Journey Modal ---
+const CreateJourneyModal = ({ lead, workspaceId, onClose, onSave }: { lead: LeadRow; workspaceId: string; onClose: () => void; onSave: () => void; }) => {
+  const [loading, setLoading] = useState(true);
+  const [integrations, setIntegrations] = useState<IntegrationItem[]>([]);
+  const [selectedTools, setSelectedTools] = useState<string[]>([]);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    async function loadTools() {
+      try {
+        const token = localStorage.getItem("revenuela_token");
+        const res = await fetch(`${API_BASE}/api/integrations?workspaceId=${workspaceId}`, { headers: { Authorization: `Bearer ${token}` } });
+        const data = await res.json();
+        setIntegrations(data.filter((i: any) => i.status === 'connected'));
+        setSelectedTools([lead.source]);
+      } catch (e) { console.error(e); } finally { setLoading(false); }
+    }
+    loadTools();
+  }, [workspaceId]);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const token = localStorage.getItem("revenuela_token");
+      await fetch(`${API_BASE}/api/leads/${lead.id}/journey`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ steps: selectedTools })
+      });
+      onSave(); onClose();
+    } catch (e) { alert("Failed to create journey"); } finally { setSaving(false); }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm">
+      <div className="w-full max-w-md rounded-2xl border border-slate-700 bg-slate-900 p-6 shadow-2xl">
+        <h2 className="text-lg font-semibold text-white mb-4">Create Journey</h2>
+        {loading ? <Loader2 className="animate-spin text-indigo-500" /> : (
+          <div className="space-y-3 mb-6">
+            {integrations.map(tool => (
+              <label key={tool.provider} className="flex items-center gap-3 p-3 rounded-xl bg-slate-800/30 border border-slate-700">
+                <input type="checkbox" checked={selectedTools.includes(tool.provider)} onChange={() => {
+                  if (selectedTools.includes(tool.provider)) setSelectedTools(selectedTools.filter(t => t !== tool.provider));
+                  else setSelectedTools([...selectedTools, tool.provider]);
+                }} />
+                <span className="text-sm text-slate-200 capitalize">{tool.provider}</span>
+              </label>
+            ))}
+          </div>
+        )}
+        <div className="flex justify-end gap-3">
+          <button onClick={onClose} className="px-4 py-2 text-sm text-slate-400">Cancel</button>
+          <button onClick={handleSave} disabled={saving} className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-semibold">Start Journey</button>
+        </div>
       </div>
     </div>
   );
@@ -511,7 +506,8 @@ export default function LeadsPage() {
   
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false); 
-  const [isRefreshing, setIsRefreshing] = useState(false); // ✅ REFRESH STATE
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const [ownerFilter, setOwnerFilter] = useState<string>("all");
   const [sourceFilter, setSourceFilter] = useState<string>("all");
@@ -520,12 +516,11 @@ export default function LeadsPage() {
   useEffect(() => {
     async function getWs() {
       const token = localStorage.getItem("revenuela_token");
-      if (!token) { setError("No auth token found. Please log in."); return; }
+      if (!token) return;
       try {
         const res = await fetch(`${API_BASE}/api/workspaces/primary`, { headers: { Authorization: `Bearer ${token}` }});
         if (res.ok) { const data = await res.json(); setWorkspaceId(data.id); }
-        else { setError("Could not load workspace."); }
-      } catch (e) { setError("Network error connecting to server."); }
+      } catch (e) {}
     }
     getWs();
   }, []);
@@ -533,11 +528,9 @@ export default function LeadsPage() {
   const fetchLeads = async () => {
     if (!workspaceId) return;
     setLoading(true);
-    setError(null);
     try {
       const token = localStorage.getItem("revenuela_token");
       const res = await fetch(`${API_BASE}/api/leads?workspaceId=${encodeURIComponent(workspaceId)}`, { headers: { Authorization: `Bearer ${token}` } });
-      if (!res.ok) throw new Error("Failed to fetch leads");
       const json = await res.json();
       setLeads(json.leads || []);
     } catch (err: any) { setError(err.message); } finally { setLoading(false); }
@@ -545,33 +538,18 @@ export default function LeadsPage() {
 
   useEffect(() => { fetchLeads(); }, [workspaceId]);
 
-  // ✅ HANDLE REFRESH
   const handleRefreshSource = async () => {
     if (!workspaceId) return;
     setIsRefreshing(true);
     try {
       const token = localStorage.getItem("revenuela_token");
-      const res = await fetch(`${API_BASE}/api/leads/sync-refresh`, {
+      await fetch(`${API_BASE}/api/leads/sync-refresh`, {
         method: "POST",
-        headers: { 
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}` 
-        },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ workspaceId }),
       });
-
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Sync failed");
-      }
-      
       await fetchLeads();
-      
-    } catch (e: any) {
-      alert(e.message || "Failed to refresh sources");
-    } finally {
-      setIsRefreshing(false);
-    }
+    } catch (e) {} finally { setIsRefreshing(false); }
   };
 
   const ownerOptions = useMemo(() => Array.from(new Set(leads.map(l => l.owner))).sort(), [leads]);
@@ -585,54 +563,45 @@ export default function LeadsPage() {
     return true;
   }), [leads, ownerFilter, sourceFilter, statusFilter]);
 
-  const openNewLeadModal = () => {
-    if (!workspaceId) { alert("Error: No Workspace ID found."); return; }
-    setIsCreateModalOpen(true);
-  };
-
-  const openImportModal = () => { 
-    if (!workspaceId) { alert("Error: No Workspace ID found."); return; }
-    setIsImportModalOpen(true);
-  }
-
   return (
     <div>
       <PageHeader title="Leads" subtitle="Manage your top-of-funnel prospects and assign them to GTM journeys." />
-      {error && <div className="mt-4 p-3 bg-rose-900/20 border border-rose-800 text-rose-200 rounded-lg text-sm flex items-center gap-2"><AlertCircle size={16} />{error}</div>}
-
+      {/* 👇 ADD THIS BLOCK TO FIX THE ERROR 👇 */}
+    {error && (
+      <div className="mt-4 p-3 bg-rose-900/20 border border-rose-800 text-rose-200 rounded-lg text-sm flex items-center gap-2">
+        <AlertCircle size={16} />
+        {error}
+      </div>
+    )}
+    {/* 👆 END OF BLOCK 👆 */}
       <div className="my-6 flex flex-wrap items-center justify-between gap-4">
         <div className="flex flex-wrap items-center gap-3 text-xs">
-          <select className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-slate-100 outline-none focus:border-indigo-500 cursor-pointer" value={ownerFilter} onChange={(e) => setOwnerFilter(e.target.value)}>
-            <option value="all">All owners</option>
-            {ownerOptions.map(o => <option key={o} value={o}>{o}</option>)}
-          </select>
-          <select className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-slate-100 outline-none focus:border-indigo-500 cursor-pointer" value={sourceFilter} onChange={(e) => setSourceFilter(e.target.value)}>
-            <option value="all">All sources</option>
-            {sourceOptions.map(s => <option key={s} value={s}>{s}</option>)}
-          </select>
-          <select className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-slate-100 outline-none focus:border-indigo-500 cursor-pointer" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-            <option value="all">Any Status</option>
-            {statusOptions.map(s => <option key={s} value={s}>{s}</option>)}
-          </select>
-          {loading && <Loader2 className="animate-spin text-slate-500" size={16} />}
+           <select className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-slate-100 outline-none focus:border-indigo-500 cursor-pointer" value={ownerFilter} onChange={e => setOwnerFilter(e.target.value)}>
+             <option value="all">All Owners</option>
+             {ownerOptions.map(o => <option key={o} value={o}>{o}</option>)}
+           </select>
+           <select className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-slate-100 outline-none focus:border-indigo-500 cursor-pointer" value={sourceFilter} onChange={e => setSourceFilter(e.target.value)}>
+             <option value="all">All Sources</option>
+             {sourceOptions.map(s => <option key={s} value={s}>{s}</option>)}
+           </select>
+           <select className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-slate-100 outline-none focus:border-indigo-500 cursor-pointer" value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
+             <option value="all">Any Status</option>
+             {statusOptions.map(s => <option key={s} value={s}>{s}</option>)}
+           </select>
+           {loading && <Loader2 className="animate-spin text-slate-500" size={16} />}
         </div>
         
         <div className="flex items-center gap-3">
-          {/* ✅ REFRESH BUTTON */}
-          <button 
-            onClick={handleRefreshSource}
-            disabled={isRefreshing}
-            className="flex items-center gap-2 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-lg text-sm font-medium border border-slate-700 transition-all disabled:opacity-50"
-            title="Check connected sheets for new rows/columns"
-          >
-            <RefreshCw size={16} className={isRefreshing ? "animate-spin" : ""} />
-            {isRefreshing ? "Syncing..." : "Sync"}
+          <button onClick={handleRefreshSource} disabled={isRefreshing} className="flex items-center gap-2 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-lg text-sm font-medium border border-slate-700">
+            <RefreshCw size={16} className={isRefreshing ? "animate-spin" : ""} /> {isRefreshing ? "Syncing..." : "Sync"}
           </button>
-
-          <button onClick={openImportModal} className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-sm font-medium border border-slate-700 transition-all hover:text-white">
+          <button onClick={() => setIsExportModalOpen(true)} className="flex items-center gap-2 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-lg text-sm font-medium border border-slate-700">
+            <Share size={16} /> Export
+          </button>
+          <button onClick={() => setIsImportModalOpen(true)} className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-sm font-medium border border-slate-700">
             <Upload size={16} /> Import
           </button>
-          <button onClick={openNewLeadModal} className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-semibold shadow-lg shadow-indigo-500/20 transition-all hover:scale-105 active:scale-95">
+          <button onClick={() => setIsCreateModalOpen(true)} className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-semibold shadow-lg shadow-indigo-500/20">
             <Plus size={16} /> New Lead
           </button>
         </div>
@@ -641,82 +610,21 @@ export default function LeadsPage() {
       <DataTable<LeadRow>
         onRowClick={(row) => setViewLead(row)}
         columns={[
-          {
-            key: "id",
-            header: "RVN ID",
-            render: (row) => (
-              <span className="font-mono text-[10px] text-indigo-300 bg-indigo-500/10 px-1.5 py-0.5 rounded border border-indigo-500/20">
-                {row.id}
-              </span>
-            ),
-          },
-          {
-            key: "name",
-            header: "Lead",
-            render: (row) => (
-              <div>
-                <div className="text-slate-100 font-medium hover:text-indigo-400 transition-colors">{row.name}</div>
-                <div className="text-xs text-slate-400">{row.title}</div>
-              </div>
-            ),
-          },
+          { key: "id", header: "RVN ID", render: (row) => <span className="font-mono text-[10px] text-indigo-300 bg-indigo-500/10 px-1.5 py-0.5 rounded border border-indigo-500/20">{row.id}</span> },
+          { key: "name", header: "Lead", render: (row) => <div><div className="text-slate-100 font-medium">{row.name}</div><div className="text-xs text-slate-400">{row.title}</div></div> },
           { key: "company", header: "Account" },
-          {
-            key: "source",
-            header: "Source",
-            render: (row) => <span className="px-2 py-1 rounded bg-slate-800 text-xs text-slate-300 border border-slate-700">{row.source}</span>,
-          },
-          {
-            key: "status",
-            header: "Journey Status",
-            render: (row) => {
-              if (row.journeySteps && row.journeySteps.length > 0) {
-                // ACTIVE STATE
-                return (
-                  <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20">
-                    <span className="relative flex h-1.5 w-1.5">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
-                    </span>
-                    <span className="text-[11px] font-medium text-emerald-400">Active ({row.journeySteps.length})</span>
-                  </div>
-                );
-              }
-              // INACTIVE STATE
-              return (
-                <button 
-                  onClick={(e) => { 
-                    e.stopPropagation(); 
-                    setSelectedLeadForJourney(row); 
-                  }} 
-                  className="group flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-800 hover:bg-indigo-600 hover:text-white text-slate-400 transition-all text-xs font-medium border border-slate-700 hover:border-indigo-500"
-                >
-                  <Zap size={12} className="group-hover:text-yellow-300" /> 
-                  Start Journey
-                </button>
-              );
-            }
-          },
+          { key: "source", header: "Source", render: (row) => <span className="px-2 py-1 rounded bg-slate-800 text-xs text-slate-300 border border-slate-700">{row.source}</span> },
+          { key: "status", header: "Journey Status", render: (row) => row.journeySteps?.length ? <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-[11px] font-medium text-emerald-400">Active</div> : <button onClick={(e) => { e.stopPropagation(); setSelectedLeadForJourney(row); }} className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-800 hover:text-white text-slate-400 text-xs border border-slate-700"><Zap size={12} /> Start</button> },
           { key: "owner", header: "Owner" },
         ]}
         data={filteredLeads}
       />
 
-      {/* DRAWERS & MODALS */}
-      {viewLead && (
-         <LeadDetailsDrawer lead={viewLead} onClose={() => setViewLead(null)} />
-      )}
-
-      {selectedLeadForJourney && workspaceId && ( 
-        <CreateJourneyModal 
-          lead={selectedLeadForJourney} 
-          workspaceId={workspaceId} 
-          onClose={() => setSelectedLeadForJourney(null)} 
-          onSave={() => fetchLeads()} 
-        /> 
-      )}
-      {isCreateModalOpen && workspaceId && ( <NewLeadModal workspaceId={workspaceId} onClose={() => setIsCreateModalOpen(false)} onSave={() => fetchLeads()} /> )}
-      {isImportModalOpen && workspaceId && ( <ImportLeadsModal workspaceId={workspaceId} onClose={() => setIsImportModalOpen(false)} onSave={() => fetchLeads()} /> )} 
+      {viewLead && <LeadDetailsDrawer lead={viewLead} onClose={() => setViewLead(null)} />}
+      {selectedLeadForJourney && workspaceId && <CreateJourneyModal lead={selectedLeadForJourney} workspaceId={workspaceId} onClose={() => setSelectedLeadForJourney(null)} onSave={fetchLeads} />}
+      {isCreateModalOpen && workspaceId && <NewLeadModal workspaceId={workspaceId} onClose={() => setIsCreateModalOpen(false)} onSave={fetchLeads} />}
+      {isImportModalOpen && workspaceId && <ImportLeadsModal workspaceId={workspaceId} onClose={() => setIsImportModalOpen(false)} onSave={fetchLeads} />}
+      {isExportModalOpen && workspaceId && <ExportHeyReachModal workspaceId={workspaceId} onClose={() => setIsExportModalOpen(false)} />}
     </div>
   );
 }

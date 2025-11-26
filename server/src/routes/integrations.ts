@@ -3,6 +3,7 @@ import { prisma } from "../db";
 import axios from "axios";
 import Stripe from "stripe";
 import { decrypt } from "../utils/encryption"; 
+import * as heyReachService from "../services/heyreach";
 
 const router = Router();
 
@@ -258,4 +259,65 @@ router.post("/:provider/sync", async (req: Request, res: Response) => {
   }
 });
 
+// 1. GET CAMPAIGNS (Proxy)
+router.get("/heyreach/campaigns", async (req: Request, res: Response) => {
+  const { workspaceId } = req.query;
+  if (!workspaceId) return res.status(400).json({ error: "Missing workspaceId" });
+
+  try {
+    // Fetch the saved API key from DB
+    const conn = await prisma.integrationConnection.findFirst({
+      where: { workspaceId: String(workspaceId), provider: "heyreach", status: "connected" }
+    });
+
+    if (!conn || !conn.authData) {
+      return res.status(403).json({ error: "HeyReach not connected." });
+    }
+
+    const auth = parseAuthData(conn.authData);
+    if (!auth?.apiKey) return res.status(403).json({ error: "Invalid credentials." });
+
+    const campaigns = await heyReachService.getCampaigns(auth.apiKey);
+    return res.json({ campaigns });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+// 2. EXPORT LEADS TO CAMPAIGN
+router.post("/heyreach/export", async (req: Request, res: Response) => {
+  const { workspaceId, campaignId, leadIds } = req.body;
+
+  if (!workspaceId || !campaignId) {
+    return res.status(400).json({ error: "Missing required fields" });
+  }
+
+  try {
+    // A. Get Credentials
+    const conn = await prisma.integrationConnection.findFirst({
+      where: { workspaceId, provider: "heyreach" }
+    });
+    const auth = parseAuthData(conn?.authData);
+    if (!auth?.apiKey) return res.status(403).json({ error: "HeyReach API Key missing." });
+
+    // B. Fetch Leads from DB
+    // If leadIds provided, fetch specific. Else fetch ALL new leads.
+    const whereCondition = leadIds && leadIds.length > 0 
+      ? { id: { in: leadIds }, workspaceId }
+      : { workspaceId }; // Default to all if no IDs passed
+
+    const leads = await prisma.lead.findMany({ where: whereCondition });
+
+    // C. Push to HeyReach
+    const result = await heyReachService.exportLeadsToCampaign(auth.apiKey, campaignId, leads);
+
+    // D. Optional: Update Lead Status or Add Activity Log
+    // await prisma.lead.updateMany(...)
+
+    return res.json(result);
+
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
+});
 export default router;

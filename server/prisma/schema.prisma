@@ -164,7 +164,7 @@ model Lead {
   company   String?
   title     String?
   source    String?   @default("Manual") // Replaced 'leadSource' to match code
-
+  linkedin  String?  // 👈 ADD THIS FIELD
   status       String  @default("new")
   journeySteps String?
   leadScore    Int?
