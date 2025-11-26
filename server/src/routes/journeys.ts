@@ -72,7 +72,8 @@ router.get("/", async (req: Request, res: Response) => {
 
     // 3. Build Journeys
     const journeys = leads.map((lead) => {
-      const source = lead.leadSource || "Unknown";
+      // ✅ FIXED: Updated leadSource -> source
+      const source = lead.source || "Unknown";
       
       // Determine Status & Revenue
       const relatedDeals = [
