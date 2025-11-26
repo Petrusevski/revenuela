@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, useRef } from "react";
+import { useNavigate } from "react-router-dom"; // 👈 ADD THIS
 import PageHeader from "../components/PageHeader";
 import DataTable from "../components/DataTable";
 import { API_BASE_URL } from "../../config";
@@ -33,6 +34,7 @@ const API_BASE = API_BASE_URL;
 // --- COMPONENT: Lead Details Drawer ---
 
 const LeadDetailsDrawer = ({ lead, onClose }: { lead: LeadRow; onClose: () => void }) => {
+  const navigate = useNavigate(); // 👈 Initialize hook
   if (!lead) return null;
 
   return (
@@ -141,7 +143,7 @@ const LeadDetailsDrawer = ({ lead, onClose }: { lead: LeadRow; onClose: () => vo
         
         {/* Footer Actions */}
         <div className="p-6 border-t border-slate-800 bg-slate-900/50">
-           <button className="w-full py-2.5 rounded-xl bg-slate-100 text-slate-950 font-bold text-sm hover:bg-white transition-colors">
+           <button onClick={() => navigate(`/leads/${lead.id}`)}className="w-full py-2.5 rounded-xl bg-slate-100 text-slate-950 font-bold text-sm hover:bg-white transition-colors">
              View Full Profile
            </button>
         </div>
