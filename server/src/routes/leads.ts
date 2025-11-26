@@ -257,5 +257,33 @@ router.patch("/:id/journey", async (req: Request, res: Response) => {
     return res.status(500).json({ error: "Failed to save journey" });
   }
 });
+router.get("/:id", async (req: Request, res: Response) => {
+  const { id } = req.params;
 
+  try {
+    const lead = await prisma.lead.findUnique({
+      where: { id },
+      include: {
+        contact: true,
+        account: true,
+        activities: { orderBy: { createdAt: "desc" } }, // Fetch history
+      }
+    });
+
+    if (!lead) return res.status(404).json({ error: "Lead not found" });
+
+    // Calculate "Fake" Intelligence Metrics (You would replace these with real logic later)
+    const intelligence = {
+      engagementScore: Math.floor(Math.random() * 100), // Mock: 0-100
+      lastActive: lead.updatedAt,
+      emailOpenRate: "32%", // Mock
+      enrichmentStatus: lead.company ? "Complete" : "Pending",
+    };
+
+    return res.json({ ...lead, intelligence });
+  } catch (error) {
+    console.error("Error fetching lead:", error);
+    return res.status(500).json({ error: "Failed to fetch lead details" });
+  }
+});
 export default router;

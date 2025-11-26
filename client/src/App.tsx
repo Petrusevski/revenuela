@@ -27,7 +27,7 @@ import WhyRevenuelaVsSheetsPage from "./pages/WhyRevenuelaVsSheetsPage";
 import HowItWorksPage from './pages/HowItWorksPage';
 import GTMStackPage from './pages/GTMStackPage';
 import PricingPage from './pages/PricingPage';
-
+import LeadProfilePage from "./pages/LeadProfilePage";
 
 
 function App() {
@@ -78,6 +78,7 @@ function App() {
         <Route path="/journeys" element={<JourneysPage />} />
         <Route path="/performance" element={<PerformancePage />} />
         <Route path="/settings" element={<SettingsPage />} />
+        <Route path="/leads/:id" element={<LeadProfilePage />} />
 
         {/* If logged in and hit /login or /signup, bounce to dashboard */}
         <Route
