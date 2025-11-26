@@ -7,10 +7,12 @@ import {
   LogOut, 
   Settings, 
   User, 
+  Menu, // Added import
 } from "lucide-react";
 
 interface TopbarProps {
   onAskAssistant?: () => void;
+  onMenuClick?: () => void; // Added Prop
 }
 
 const API_BASE =
@@ -25,7 +27,7 @@ type Notification = {
   createdAt: string;
 };
 
-export default function Topbar({ onAskAssistant }: TopbarProps) {
+export default function Topbar({ onAskAssistant, onMenuClick }: TopbarProps) {
   const [profileOpen, setProfileOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const profileRef = useRef<HTMLDivElement>(null);
@@ -57,11 +59,9 @@ export default function Topbar({ onAskAssistant }: TopbarProps) {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Fetch notifications (Fixed Logic)
+  // Fetch notifications
   useEffect(() => {
     const token = localStorage.getItem("revenuela_token");
-    
-    // 🔴 FIX: Stop if no token. Prevents 400/401 errors on login screen or initial load.
     if (!token) return;
 
     const fetchNotifications = async () => {
@@ -73,10 +73,7 @@ export default function Topbar({ onAskAssistant }: TopbarProps) {
           },
         });
         
-        if (res.status === 401) {
-           // Optional: handle token expiration here
-           return;
-        }
+        if (res.status === 401) return;
 
         if (!res.ok) return;
         const data = await res.json();
@@ -88,10 +85,7 @@ export default function Topbar({ onAskAssistant }: TopbarProps) {
       }
     };
 
-    // Initial fetch
     fetchNotifications();
-
-    // Poll every 60 seconds
     const interval = setInterval(fetchNotifications, 60_000);
     return () => clearInterval(interval);
   }, []);
@@ -100,11 +94,9 @@ export default function Topbar({ onAskAssistant }: TopbarProps) {
     const next = !notifOpen;
     setNotifOpen(next);
     
-    // If opening and we have unread items, mark them as read
     if (next && unreadCount > 0) {
       const token = localStorage.getItem("revenuela_token");
       if (!token) return;
-      
       try {
         await fetch(`${API_BASE}/api/notifications/mark-read`, {
           method: "POST",
@@ -112,10 +104,8 @@ export default function Topbar({ onAskAssistant }: TopbarProps) {
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
           },
-          body: JSON.stringify({}), // Empty body implies "mark all"
+          body: JSON.stringify({}), 
         });
-
-        // Optimistic update
         setNotifications((prev) =>
           prev.map((n) => ({ ...n, isRead: true }))
         );
@@ -128,14 +118,12 @@ export default function Topbar({ onAskAssistant }: TopbarProps) {
   const handleLogout = () => {
     localStorage.removeItem("revenuela_token");
     localStorage.removeItem("revenuela_user");
-    // Use replace to prevent back-button navigation after logout
     window.location.replace("/login");
   };
 
   const formatTime = (iso: string) => {
     try {
       const d = new Date(iso);
-      // Returns simple format: "10:30 AM"
       return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
     } catch {
       return "";
@@ -145,16 +133,28 @@ export default function Topbar({ onAskAssistant }: TopbarProps) {
   return (
     <header className="h-16 border-b border-slate-800 flex items-center px-4 md:px-6 bg-slate-950/80 backdrop-blur z-40 sticky top-0">
       
+      {/* Mobile Sidebar Toggle - NEW */}
+      <button 
+        onClick={onMenuClick}
+        className="md:hidden mr-3 text-slate-400 hover:text-white"
+      >
+        <Menu size={20} />
+      </button>
+
       {/* Search Bar */}
       <div className="flex-1 flex items-center gap-3">
-        <div className="relative max-w-md w-full">
+        <div className="relative max-w-md w-full hidden sm:block"> {/* Hidden on very small screens, visible on SM+ */}
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
           <input
             type="text"
-            placeholder="Search leads, accounts, or deals..."
+            placeholder="Search leads..."
             className="w-full bg-slate-900 border border-slate-700 rounded-xl pl-10 pr-4 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition-all"
           />
         </div>
+        {/* Mobile Search Icon (optional replacement for bar) */}
+        <button className="sm:hidden text-slate-400">
+           <Search size={20} />
+        </button>
       </div>
 
       {/* Right Actions */}
@@ -236,7 +236,6 @@ export default function Topbar({ onAskAssistant }: TopbarProps) {
                           {n.body}
                         </p>
                       </div>
-                      {/* Dot indicator for unread */}
                       {!n.isRead && (
                          <div className="h-1.5 w-1.5 rounded-full bg-indigo-500 mt-2 shrink-0" />
                       )}
@@ -285,7 +284,6 @@ export default function Topbar({ onAskAssistant }: TopbarProps) {
               
               <button
                 onClick={() => {
-                   // Navigate to profile logic
                    setProfileOpen(false);
                 }}
                 className="w-full text-left px-4 py-2 text-sm text-slate-300 hover:bg-slate-800 hover:text-white flex items-center gap-2 transition-colors"
