@@ -9,18 +9,16 @@ datasource db {
 }
 
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  fullName  String
-  passwordHash String?          // 👈 make it optional for now
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id           String   @id @default(cuid())
+  email        String   @unique
+  fullName     String
+  passwordHash String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  memberships WorkspaceUser[]
+  memberships   WorkspaceUser[]
   notifications Notification[]
-
 }
-
 
 model Workspace {
   id   String @id @default(cuid())
@@ -30,26 +28,25 @@ model Workspace {
   // ── Workspace-level settings ───────────────────────────────
   companyName         String?
   primaryDomain       String?
-  defaultCurrency     String   @default("EUR")          // "EUR", "USD", "GBP"
-  timezone            String   @default("Europe/Prague")
-  industry            String   @default("SaaS")         // for benchmarks
+  defaultCurrency     String  @default("EUR") // "EUR", "USD", "GBP"
+  timezone            String  @default("Europe/Prague")
+  industry            String  @default("SaaS") // for benchmarks
 
-  plan                String   @default("pro")          // "free" | "pro" | "enterprise"
-  seatsTotal          Int      @default(5)
-  seatsUsed           Int      @default(1)
+  plan                String  @default("pro") // "free" | "pro" | "enterprise"
+  seatsTotal          Int     @default(5)
+  seatsUsed           Int     @default(1)
   billingEmail        String?
+  revenuelaIdPrefix   String  @default("RVN-LEAD-")
+  publicApiKey        String  @default("")
+  webhookEndpoint     String  @default("")
 
-  revenuelaIdPrefix   String   @default("RVN-LEAD-")
-  publicApiKey        String   @default("")
-  webhookEndpoint     String   @default("")
-
- dataAnonymization   Boolean  @default(false)
-  dataRetentionMonths Int      @default(12)
+  dataAnonymization   Boolean @default(false)
+  dataRetentionMonths Int     @default(12)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  // ── Relations (unchanged) ─────────────────────────────────
+  // ── Relations ──────────────────────────────────────────────
   users               WorkspaceUser[]
   accounts            Account[]
   contacts            Contact[]
@@ -59,69 +56,70 @@ model Workspace {
   workflows           Workflow[]
   sequences           Sequence[]
   integrations        IntegrationConnection[]
-  sequenceEnrollments SequenceEnrollment[] // 👈 back-relation
-  notifications       Notification[]   // 👈 new relation
-
+  sequenceEnrollments SequenceEnrollment[]
+  notifications       Notification[]
 }
+
 model Notification {
   id          String    @id @default(cuid())
   workspace   Workspace @relation(fields: [workspaceId], references: [id])
   workspaceId String
 
-  user        User?     @relation(fields: [userId], references: [id])
-  userId      String?
+  user   User?   @relation(fields: [userId], references: [id])
+  userId String?
 
-  type        String
-  title       String
-  body        String
-  severity    String   @default("info") // "info" | "warning" | "error"
-  isRead      Boolean  @default(false)
-  createdAt   DateTime @default(now())
-  readAt      DateTime?
+  type      String
+  title     String
+  body      String
+  severity  String    @default("info") // "info" | "warning" | "error"
+  isRead    Boolean   @default(false)
+  createdAt DateTime  @default(now())
+  readAt    DateTime?
 }
 
 model WorkspaceUser {
-  id          String    @id @default(cuid())
+  id String @id @default(cuid())
 
   workspace   Workspace @relation(fields: [workspaceId], references: [id])
   workspaceId String
 
-  user        User      @relation(fields: [userId], references: [id])
-  userId      String
+  user   User   @relation(fields: [userId], references: [id])
+  userId String
 
   // Role in this workspace
-  role           String  @default("owner")   // "owner" | "admin" | "analyst" | "readonly"
-  isBillingOwner Boolean @default(false)
+  role            String  @default("owner") // "owner" | "admin" | "analyst" | "readonly"
+  isBillingOwner  Boolean @default(false)
 
-  // Per-user preferences in this workspace
+  // Per-user preferences
   darkMode          Boolean @default(true)
   weeklyDigest      Boolean @default(true)
   performanceAlerts Boolean @default(true)
 
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Account {
-  id             String    @id @default(cuid())
-  workspace      Workspace @relation(fields: [workspaceId], references: [id])
-  workspaceId    String
-  name           String
-  domain         String?
-  industry       String?
-  employeeCount  Int?
-  country        String?
-  city           String?
-  websiteUrl     String?
-  lifecycleStage String    @default("prospect")
-  ownerId        String?
+  id          String    @id @default(cuid())
+  workspace   Workspace @relation(fields: [workspaceId], references: [id])
+  workspaceId String
+  name        String
+  domain      String?
+  industry    String?
+  employeeCount Int?
+  country     String?
+  city        String?
+  websiteUrl  String?
+  lifecycleStage String @default("prospect")
+  ownerId     String?
 
   contacts   Contact[]
   leads      Lead[]
   deals      Deal[]
   activities Activity[]
-  createdAt  DateTime   @default(now())
-  updatedAt  DateTime   @updatedAt
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Contact {
@@ -130,6 +128,7 @@ model Contact {
   workspaceId String
   account     Account?  @relation(fields: [accountId], references: [id])
   accountId   String?
+
   firstName   String
   lastName    String
   email       String?
@@ -156,13 +155,21 @@ model Lead {
   accountId   String?
   contact     Contact?  @relation(fields: [contactId], references: [id])
   contactId   String?
-  status      String    @default("new")
-  journeySteps String? 
 
-  leadSource  String?
-  leadScore   Int?
-  fitScore    Int?
-  ownerId     String?
+  // ✅ Updated fields for Import/Sync
+  email     String
+  fullName  String?
+  firstName String?
+  lastName  String?
+  company   String?
+  title     String?
+  source    String?   @default("Manual") // Replaced 'leadSource' to match code
+
+  status       String  @default("new")
+  journeySteps String?
+  leadScore    Int?
+  fitScore     Int?
+  ownerId      String?
 
   activities          Activity[]
   sequenceEnrollments SequenceEnrollment[]
@@ -172,13 +179,14 @@ model Lead {
 }
 
 model Deal {
-  id                String    @id @default(cuid())
-  workspace         Workspace @relation(fields: [workspaceId], references: [id])
-  workspaceId       String
-  account           Account   @relation(fields: [accountId], references: [id])
-  accountId         String
-  primaryContact    Contact?  @relation(fields: [primaryContactId], references: [id])
-  primaryContactId  String?
+  id               String    @id @default(cuid())
+  workspace        Workspace @relation(fields: [workspaceId], references: [id])
+  workspaceId      String
+  account          Account   @relation(fields: [accountId], references: [id])
+  accountId        String
+  primaryContact   Contact?  @relation(fields: [primaryContactId], references: [id])
+  primaryContactId String?
+
   name              String
   pipeline          String    @default("new_business")
   stage             String    @default("qualification")
@@ -226,10 +234,10 @@ model Workflow {
   description   String?
   status        String    @default("draft")
   triggerType   String    @default("event")
-  // store JSON as string for SQLite
-  triggerConfig String?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  triggerConfig String? // JSON string
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   nodes WorkflowNode[]
   edges WorkflowEdge[]
@@ -243,8 +251,7 @@ model WorkflowNode {
   name       String
   positionX  Float    @default(0)
   positionY  Float    @default(0)
-  // store JSON as string for SQLite
-  config     String?
+  config     String? // JSON string
 
   outgoingEdges WorkflowEdge[] @relation("FromNode")
   incomingEdges WorkflowEdge[] @relation("ToNode")
@@ -265,18 +272,18 @@ model WorkflowEdge {
 }
 
 model Sequence {
-  id          String    @id @default(cuid())
+  id          String   @id @default(cuid())
   workspace   Workspace @relation(fields: [workspaceId], references: [id])
   workspaceId String
   name        String
   description String?
-  type        String    @default("outbound")
-  status      String    @default("draft")
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  type        String   @default("outbound")
+  status      String   @default("draft")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   steps       SequenceStep[]
-  enrollments SequenceEnrollment[] // 👈 added back-relation
+  enrollments SequenceEnrollment[]
 }
 
 model SequenceStep {
@@ -287,8 +294,7 @@ model SequenceStep {
   actionType String
   delayHours Int?
   templateId String?
-  // store JSON as string for SQLite
-  config     String?
+  config     String? // JSON string
 }
 
 model SequenceEnrollment {
@@ -300,9 +306,8 @@ model SequenceEnrollment {
 
   contact   Contact? @relation(fields: [contactId], references: [id])
   contactId String?
-
-  lead   Lead?   @relation(fields: [leadId], references: [id])
-  leadId String?
+  lead      Lead?    @relation(fields: [leadId], references: [id])
+  leadId    String?
 
   status           String   @default("active")
   currentStepOrder Int?
@@ -316,8 +321,8 @@ model IntegrationConnection {
   workspaceId String
   provider    String
   status      String    @default("connected")
-  // store JSON as string for SQLite
-  authData    String?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  authData    String? // JSON string
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }

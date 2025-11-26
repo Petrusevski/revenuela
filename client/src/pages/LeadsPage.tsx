@@ -1,8 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import PageHeader from "../components/PageHeader";
 import DataTable from "../components/DataTable";
-import { API_BASE_URL } from "../../config"; // ✅ Correct import
-import { Zap, Check, X, Loader2, Plus, UserPlus, AlertCircle } from "lucide-react";
+import { API_BASE_URL } from "../../config";
+import { 
+  Zap, Check, X, Loader2, Plus, UserPlus, AlertCircle, 
+  Upload, FileSpreadsheet, FileText, Download 
+} from "lucide-react";
 
 // --- TYPES ---
 
@@ -25,8 +28,195 @@ type IntegrationItem = {
 
 const API_BASE = API_BASE_URL;
 
+// --- COMPONENT: Import Leads Modal (NEW) ---
+
+const ImportLeadsModal = ({ workspaceId, onClose, onSave }: { workspaceId: string, onClose: () => void, onSave: () => void }) => {
+  const [mode, setMode] = useState<"csv" | "gsheet">("csv");
+  const [file, setFile] = useState<File | null>(null);
+  const [sheetUrl, setSheetUrl] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleCsvUpload = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!file) return;
+    setUploading(true);
+    setError(null);
+
+    try {
+      const token = localStorage.getItem("revenuela_token");
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("workspaceId", workspaceId);
+
+      // ⚠️ Backend Endpoint Requirement: POST /api/leads/upload-csv
+      // Expects multipart/form-data
+      const res = await fetch(`${API_BASE}/api/leads/upload-csv`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` }, // Do NOT set Content-Type header for FormData, browser does it
+        body: formData,
+      });
+
+      if (!res.ok) throw new Error("Failed to upload CSV. Ensure headers match template.");
+      
+      onSave(); // Refresh list
+      onClose();
+    } catch (err: any) {
+      setError(err.message || "Upload failed");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleGSheetSync = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!sheetUrl) return;
+    setUploading(true);
+    setError(null);
+
+    try {
+      const token = localStorage.getItem("revenuela_token");
+      
+      // ⚠️ Backend Endpoint Requirement: POST /api/leads/sync-gsheet
+      const res = await fetch(`${API_BASE}/api/leads/sync-gsheet`, {
+        method: "POST",
+        headers: { 
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}` 
+        },
+        body: JSON.stringify({ workspaceId, sheetUrl }),
+      });
+
+      if (!res.ok) throw new Error("Failed to sync Sheet. Is it public or shared with our service account?");
+      
+      onSave();
+      onClose();
+    } catch (err: any) {
+      setError(err.message || "Sync failed");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm">
+      <div className="w-full max-w-lg rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl animate-in fade-in zoom-in duration-200 overflow-hidden">
+        
+        {/* Header */}
+        <div className="flex items-center justify-between p-6 border-b border-slate-800 bg-slate-900/50">
+          <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+            <Upload className="text-indigo-400" size={20} /> Import Leads
+          </h2>
+          <button onClick={onClose}><X className="text-slate-500 hover:text-white" size={20} /></button>
+        </div>
+
+        {/* Tabs */}
+        <div className="flex border-b border-slate-800">
+          <button 
+            onClick={() => setMode("csv")}
+            className={`flex-1 py-3 text-sm font-medium transition-colors flex items-center justify-center gap-2 ${mode === 'csv' ? 'bg-slate-800 text-white border-b-2 border-indigo-500' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'}`}
+          >
+            <FileText size={16} /> Upload CSV
+          </button>
+          <button 
+            onClick={() => setMode("gsheet")}
+            className={`flex-1 py-3 text-sm font-medium transition-colors flex items-center justify-center gap-2 ${mode === 'gsheet' ? 'bg-slate-800 text-white border-b-2 border-emerald-500' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'}`}
+          >
+            <FileSpreadsheet size={16} /> Google Sheets
+          </button>
+        </div>
+
+        <div className="p-6">
+          {error && (
+            <div className="mb-4 p-3 bg-rose-900/20 border border-rose-800 text-rose-200 rounded-lg text-xs flex items-center gap-2">
+              <AlertCircle size={14} /> {error}
+            </div>
+          )}
+
+          {mode === "csv" ? (
+            <form onSubmit={handleCsvUpload} className="space-y-4">
+              <div 
+                onClick={() => fileInputRef.current?.click()}
+                className="border-2 border-dashed border-slate-700 hover:border-indigo-500 hover:bg-slate-800/30 rounded-xl p-8 flex flex-col items-center justify-center cursor-pointer transition-all group"
+              >
+                <div className="h-12 w-12 rounded-full bg-slate-800 group-hover:bg-indigo-500/20 flex items-center justify-center mb-3 transition-colors">
+                  <Upload className="text-slate-400 group-hover:text-indigo-400" size={24} />
+                </div>
+                {file ? (
+                  <div className="text-center">
+                    <p className="text-sm font-medium text-white">{file.name}</p>
+                    <p className="text-xs text-slate-500 mt-1">{(file.size / 1024).toFixed(1)} KB</p>
+                  </div>
+                ) : (
+                  <div className="text-center">
+                    <p className="text-sm font-medium text-slate-300">Click to browse or drag file here</p>
+                    <p className="text-xs text-slate-500 mt-1">Supports .csv files</p>
+                  </div>
+                )}
+                <input 
+                  type="file" 
+                  ref={fileInputRef} 
+                  accept=".csv" 
+                  className="hidden" 
+                  onChange={(e) => e.target.files && setFile(e.target.files[0])} 
+                />
+              </div>
+
+              <div className="flex items-center justify-between">
+                <a href="#" className="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-1">
+                  <Download size={12} /> Download template
+                </a>
+                <button 
+                  type="submit" 
+                  disabled={!file || uploading} 
+                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                  {uploading ? <Loader2 className="animate-spin" size={14} /> : "Upload File"}
+                </button>
+              </div>
+            </form>
+          ) : (
+            <form onSubmit={handleGSheetSync} className="space-y-4">
+              <div className="bg-emerald-900/10 border border-emerald-900/30 p-4 rounded-lg">
+                <p className="text-xs text-emerald-200 leading-relaxed">
+                  <strong>Note:</strong> To connect a sheet, please share it with our service account email: 
+                  <br />
+                  <code className="bg-black/30 px-1 py-0.5 rounded text-emerald-400 select-all">sync-bot@revenuela-app.iam.gserviceaccount.com</code>
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-400 mb-1">Google Sheet URL</label>
+                <input 
+                  type="url" 
+                  required
+                  placeholder="https://docs.google.com/spreadsheets/d/..."
+                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:border-emerald-500 outline-none placeholder-slate-600"
+                  value={sheetUrl}
+                  onChange={(e) => setSheetUrl(e.target.value)}
+                />
+              </div>
+
+              <div className="flex justify-end pt-2">
+                 <button 
+                  type="submit" 
+                  disabled={!sheetUrl || uploading} 
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                  {uploading ? <Loader2 className="animate-spin" size={14} /> : "Sync Sheet"}
+                </button>
+              </div>
+            </form>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // --- COMPONENT: Create Journey Modal ---
-// (This remains unchanged, collapsed for brevity)
+// (Unchanged from your code)
 const CreateJourneyModal = ({ lead, workspaceId, onClose, onSave }: { lead: LeadRow; workspaceId: string; onClose: () => void; onSave: () => void; }) => {
   const [loading, setLoading] = useState(true);
   const [integrations, setIntegrations] = useState<IntegrationItem[]>([]);
@@ -142,7 +332,7 @@ const CreateJourneyModal = ({ lead, workspaceId, onClose, onSave }: { lead: Lead
 };
 
 // --- COMPONENT: New Lead Modal ---
-// (This remains unchanged)
+// (Unchanged)
 const NewLeadModal = ({ workspaceId, onClose, onSave }: { workspaceId: string, onClose: () => void, onSave: () => void }) => {
   const [form, setForm] = useState({ firstName: "", lastName: "", email: "", company: "", title: "" });
   const [saving, setSaving] = useState(false);
@@ -197,6 +387,7 @@ export default function LeadsPage() {
 
   const [selectedLead, setSelectedLead] = useState<LeadRow | null>(null);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false); // ✅ Added state
 
   const [ownerFilter, setOwnerFilter] = useState<string>("all");
   const [sourceFilter, setSourceFilter] = useState<string>("all");
@@ -248,6 +439,11 @@ export default function LeadsPage() {
     setIsCreateModalOpen(true);
   };
 
+  const openImportModal = () => { // ✅ Added function
+    if (!workspaceId) { alert("Error: No Workspace ID found."); return; }
+    setIsImportModalOpen(true);
+  }
+
   return (
     <div>
       <PageHeader title="Leads" subtitle="Manage your top-of-funnel prospects and assign them to GTM journeys." />
@@ -269,7 +465,16 @@ export default function LeadsPage() {
           </select>
           {loading && <Loader2 className="animate-spin text-slate-500" size={16} />}
         </div>
-        <button onClick={openNewLeadModal} className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-semibold shadow-lg shadow-indigo-500/20 transition-all hover:scale-105 active:scale-95"><Plus size={16} /> New Lead</button>
+        
+        {/* ✅ UPDATED BUTTONS */}
+        <div className="flex items-center gap-3">
+          <button onClick={openImportModal} className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-sm font-medium border border-slate-700 transition-all hover:text-white">
+            <Upload size={16} /> Import
+          </button>
+          <button onClick={openNewLeadModal} className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-semibold shadow-lg shadow-indigo-500/20 transition-all hover:scale-105 active:scale-95">
+            <Plus size={16} /> New Lead
+          </button>
+        </div>
       </div>
 
       <DataTable<LeadRow>
@@ -323,6 +528,7 @@ export default function LeadsPage() {
 
       {selectedLead && workspaceId && ( <CreateJourneyModal lead={selectedLead} workspaceId={workspaceId} onClose={() => setSelectedLead(null)} onSave={() => fetchLeads()} /> )}
       {isCreateModalOpen && workspaceId && ( <NewLeadModal workspaceId={workspaceId} onClose={() => setIsCreateModalOpen(false)} onSave={() => fetchLeads()} /> )}
+      {isImportModalOpen && workspaceId && ( <ImportLeadsModal workspaceId={workspaceId} onClose={() => setIsImportModalOpen(false)} onSave={() => fetchLeads()} /> )} 
     </div>
   );
 }

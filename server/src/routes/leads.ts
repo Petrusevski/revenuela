@@ -1,6 +1,7 @@
 import { Router, Request, Response } from "express";
 import { prisma } from "../db";
 import { v4 as uuidv4 } from "uuid"; // 👈 Import UUID generator
+import { fetchSheetData } from "../services/googleSheets";
 
 const router = Router();
 
@@ -132,4 +133,60 @@ router.patch("/:id/journey", async (req: Request, res: Response) => {
   }
 });
 
+router.post("/sync-gsheet", async (req, res) => {
+  try {
+    const { workspaceId, sheetUrl } = req.body;
+
+    if (!sheetUrl) {
+      return res.status(400).json({ error: "Missing sheetUrl" });
+    }
+
+    // 1. Fetch data from Google
+    const rawLeads = await fetchSheetData(sheetUrl);
+
+    if (rawLeads.length === 0) {
+      return res.status(400).json({ error: "Sheet is empty or headers could not be mapped." });
+    }
+
+    // 2. Save to Database (Bulk Insert)
+    let successCount = 0;
+    
+    // Using a loop or createMany to handle data mapping safely
+    for (const row of rawLeads) {
+      // Basic validation: Must have email
+      if (!row.email) continue;
+
+      // Construct Name if missing
+      const fullName = row.name || `${row.firstName || ''} ${row.lastName || ''}`.trim();
+      
+      try {
+        await prisma.lead.create({
+          data: {
+            workspaceId,
+            email: row.email,
+            fullName: fullName || "Unknown",
+            company: row.company || "",
+            title: row.title || "",
+            source: "Google Sheets", // Tag source as GSheet
+            status: "new"
+          }
+        });
+        successCount++;
+      } catch (e) {
+        // Skip duplicates (unique constraint on email)
+        console.warn(`Skipping duplicate or invalid lead: ${row.email}`);
+      }
+    }
+
+    return res.json({ 
+      success: true, 
+      count: successCount, 
+      message: `Successfully imported ${successCount} leads from Google Sheet.` 
+    });
+
+  } catch (error: any) {
+    console.error(error);
+    return res.status(500).json({ error: error.message });
+  }
+});
 export default router;
