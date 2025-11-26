@@ -1,7 +1,7 @@
 import { ReactNode } from "react";
 
 interface Column<T> {
-  key: keyof T | string;
+  key: string;
   header: string;
   render?: (row: T) => ReactNode;
 }
@@ -9,11 +9,13 @@ interface Column<T> {
 interface DataTableProps<T> {
   columns: Column<T>[];
   data: T[];
+  onRowClick?: (row: T) => void; // ✅ Added Prop
 }
 
 export default function DataTable<T extends { id: string | number }>({
   columns,
-  data
+  data,
+  onRowClick // ✅ Added Destructuring
 }: DataTableProps<T>) {
   return (
     <div className="overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/60">
@@ -44,11 +46,12 @@ export default function DataTable<T extends { id: string | number }>({
             data.map((row, rowIndex) => (
               <tr
                 key={row.id}
-                className={
-                  rowIndex % 2 === 0
-                    ? "border-t border-slate-800 bg-slate-950/40"
-                    : "border-t border-slate-800 bg-slate-950/20"
-                }
+                onClick={() => onRowClick && onRowClick(row)} // ✅ Added Click Handler
+                className={`
+                  border-t border-slate-800 transition-colors
+                  ${rowIndex % 2 === 0 ? "bg-slate-950/40" : "bg-slate-950/20"}
+                  ${onRowClick ? "cursor-pointer hover:bg-slate-800/60" : ""} 
+                `} // ✅ Added hover styles if clickable
               >
                 {columns.map((col) => (
                   <td key={String(col.key)} className="px-4 py-2">

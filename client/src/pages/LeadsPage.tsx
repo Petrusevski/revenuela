@@ -4,7 +4,8 @@ import DataTable from "../components/DataTable";
 import { API_BASE_URL } from "../../config";
 import { 
   Zap, Check, X, Loader2, Plus, UserPlus, AlertCircle, 
-  Upload, FileSpreadsheet, FileText, Download 
+  Upload, FileSpreadsheet, FileText, Download,
+  Mail, Building, Globe, ArrowRight, Map 
 } from "lucide-react";
 
 // --- TYPES ---
@@ -19,6 +20,7 @@ type LeadRow = {
   owner: string;
   status: string;
   journeySteps?: string[]; 
+  email?: string; // Added for details view
 };
 
 type IntegrationItem = {
@@ -28,7 +30,127 @@ type IntegrationItem = {
 
 const API_BASE = API_BASE_URL;
 
-// --- COMPONENT: Import Leads Modal (NEW) ---
+// --- COMPONENT: Lead Details Drawer (New) ---
+
+const LeadDetailsDrawer = ({ lead, onClose }: { lead: LeadRow; onClose: () => void }) => {
+  if (!lead) return null;
+
+  return (
+    <div className="fixed inset-0 z-[100] flex justify-end">
+      {/* Backdrop */}
+      <div className="absolute inset-0 bg-black/20 backdrop-blur-sm" onClick={onClose} />
+      
+      {/* Drawer */}
+      <div className="relative w-full max-w-md bg-slate-950 border-l border-slate-800 h-full shadow-2xl animate-in slide-in-from-right duration-300 flex flex-col">
+        
+        {/* Header */}
+        <div className="p-6 border-b border-slate-800 flex items-start justify-between bg-slate-900/50">
+          <div>
+            <h2 className="text-xl font-bold text-white">{lead.name}</h2>
+            <p className="text-sm text-slate-400 mt-1">{lead.title || "No Title"}</p>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-slate-800 rounded-full text-slate-400 hover:text-white transition-colors">
+            <X size={20} />
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto p-6 space-y-8">
+          
+          {/* Status Section */}
+          <div className="space-y-3">
+             <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Status</h3>
+             {lead.journeySteps && lead.journeySteps.length > 0 ? (
+                <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-sm font-medium">
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                  </span>
+                  Active in Journey
+                </div>
+             ) : (
+                <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-800 text-slate-400 text-sm font-medium">
+                  Not in Journey
+                </div>
+             )}
+          </div>
+
+          {/* Contact Info */}
+          <div className="space-y-4">
+            <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Contact Details</h3>
+            
+            <div className="flex items-center gap-3 text-sm">
+              <div className="w-8 h-8 rounded-lg bg-slate-900 flex items-center justify-center text-slate-500">
+                <Mail size={16} />
+              </div>
+              <div>
+                <p className="text-slate-400 text-xs">Email</p>
+                <p className="text-slate-200">{lead.email || "No email"}</p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 text-sm">
+              <div className="w-8 h-8 rounded-lg bg-slate-900 flex items-center justify-center text-slate-500">
+                <Building size={16} />
+              </div>
+              <div>
+                <p className="text-slate-400 text-xs">Company</p>
+                <p className="text-slate-200">{lead.company || "Unknown"}</p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 text-sm">
+              <div className="w-8 h-8 rounded-lg bg-slate-900 flex items-center justify-center text-slate-500">
+                <Globe size={16} />
+              </div>
+              <div>
+                <p className="text-slate-400 text-xs">Source</p>
+                <p className="text-slate-200">{lead.source}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Active Journey Visualization */}
+          {lead.journeySteps && lead.journeySteps.length > 0 && (
+            <div className="space-y-4">
+               <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
+                 <Map size={14} /> Active Journey Path
+               </h3>
+               <div className="relative pl-4 border-l-2 border-slate-800 space-y-6">
+                  {lead.journeySteps.map((step, idx) => (
+                    <div key={idx} className="relative">
+                      {/* Timeline Dot */}
+                      <div className="absolute -left-[21px] top-1 h-3 w-3 rounded-full bg-indigo-500 border-2 border-slate-950 ring-2 ring-indigo-500/20" />
+                      
+                      <div className="bg-slate-900/50 p-3 rounded-xl border border-slate-800">
+                        <span className="text-xs text-indigo-400 font-bold mb-1 block">Step {idx + 1}</span>
+                        <span className="text-sm font-medium text-white">{step}</span>
+                      </div>
+                      
+                      {idx < (lead.journeySteps?.length || 0) - 1 && (
+                         <div className="absolute left-1/2 -bottom-4 text-slate-600">
+                           <ArrowRight size={14} className="rotate-90" />
+                         </div>
+                      )}
+                    </div>
+                  ))}
+               </div>
+            </div>
+          )}
+        </div>
+        
+        {/* Footer Actions */}
+        <div className="p-6 border-t border-slate-800 bg-slate-900/50">
+           <button className="w-full py-2.5 rounded-xl bg-slate-100 text-slate-950 font-bold text-sm hover:bg-white transition-colors">
+             View Full Profile
+           </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// --- COMPONENT: Import Leads Modal ---
 
 const ImportLeadsModal = ({ workspaceId, onClose, onSave }: { workspaceId: string, onClose: () => void, onSave: () => void }) => {
   const [mode, setMode] = useState<"csv" | "gsheet">("csv");
@@ -50,17 +172,15 @@ const ImportLeadsModal = ({ workspaceId, onClose, onSave }: { workspaceId: strin
       formData.append("file", file);
       formData.append("workspaceId", workspaceId);
 
-      // ⚠️ Backend Endpoint Requirement: POST /api/leads/upload-csv
-      // Expects multipart/form-data
       const res = await fetch(`${API_BASE}/api/leads/upload-csv`, {
         method: "POST",
-        headers: { Authorization: `Bearer ${token}` }, // Do NOT set Content-Type header for FormData, browser does it
+        headers: { Authorization: `Bearer ${token}` },
         body: formData,
       });
 
       if (!res.ok) throw new Error("Failed to upload CSV. Ensure headers match template.");
       
-      onSave(); // Refresh list
+      onSave();
       onClose();
     } catch (err: any) {
       setError(err.message || "Upload failed");
@@ -77,8 +197,6 @@ const ImportLeadsModal = ({ workspaceId, onClose, onSave }: { workspaceId: strin
 
     try {
       const token = localStorage.getItem("revenuela_token");
-      
-      // ⚠️ Backend Endpoint Requirement: POST /api/leads/sync-gsheet
       const res = await fetch(`${API_BASE}/api/leads/sync-gsheet`, {
         method: "POST",
         headers: { 
@@ -182,7 +300,7 @@ const ImportLeadsModal = ({ workspaceId, onClose, onSave }: { workspaceId: strin
                 <p className="text-xs text-emerald-200 leading-relaxed">
                   <strong>Note:</strong> To connect a sheet, please share it with our service account email: 
                   <br />
-                  {/* ✅ UPDATED EMAIL ADDRESS BELOW */}
+                  {/* ✅ CORRECTED EMAIL: */}
                   <code className="bg-black/30 px-1 py-0.5 rounded text-emerald-400 select-all">sync-bot@hypelow.iam.gserviceaccount.com</code>
                 </p>
               </div>
@@ -217,6 +335,7 @@ const ImportLeadsModal = ({ workspaceId, onClose, onSave }: { workspaceId: strin
 };
 
 // --- COMPONENT: Create Journey Modal ---
+
 const CreateJourneyModal = ({ lead, workspaceId, onClose, onSave }: { lead: LeadRow; workspaceId: string; onClose: () => void; onSave: () => void; }) => {
   const [loading, setLoading] = useState(true);
   const [integrations, setIntegrations] = useState<IntegrationItem[]>([]);
@@ -332,6 +451,7 @@ const CreateJourneyModal = ({ lead, workspaceId, onClose, onSave }: { lead: Lead
 };
 
 // --- COMPONENT: New Lead Modal ---
+
 const NewLeadModal = ({ workspaceId, onClose, onSave }: { workspaceId: string, onClose: () => void, onSave: () => void }) => {
   const [form, setForm] = useState({ firstName: "", lastName: "", email: "", company: "", title: "" });
   const [saving, setSaving] = useState(false);
@@ -384,7 +504,10 @@ export default function LeadsPage() {
   const [error, setError] = useState<string | null>(null);
   const [workspaceId, setWorkspaceId] = useState<string | null>(null);
 
-  const [selectedLead, setSelectedLead] = useState<LeadRow | null>(null);
+  // Modal States
+  const [selectedLeadForJourney, setSelectedLeadForJourney] = useState<LeadRow | null>(null); // For "Start Journey"
+  const [viewLead, setViewLead] = useState<LeadRow | null>(null); // For "View Details" drawer
+  
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false); 
 
@@ -476,6 +599,7 @@ export default function LeadsPage() {
       </div>
 
       <DataTable<LeadRow>
+        onRowClick={(row) => setViewLead(row)}
         columns={[
           {
             key: "id",
@@ -491,7 +615,7 @@ export default function LeadsPage() {
             header: "Lead",
             render: (row) => (
               <div>
-                <div className="text-slate-100 font-medium">{row.name}</div>
+                <div className="text-slate-100 font-medium hover:text-indigo-400 transition-colors">{row.name}</div>
                 <div className="text-xs text-slate-400">{row.title}</div>
               </div>
             ),
@@ -504,18 +628,32 @@ export default function LeadsPage() {
           },
           {
             key: "status",
-            header: "Journey",
+            header: "Journey Status",
             render: (row) => {
               if (row.journeySteps && row.journeySteps.length > 0) {
+                // ACTIVE STATE
                 return (
-                  <div className="flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                    <span className="text-emerald-400 font-medium text-xs">Active ({row.journeySteps.length} steps)</span>
+                  <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20">
+                    <span className="relative flex h-1.5 w-1.5">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
+                    </span>
+                    <span className="text-[11px] font-medium text-emerald-400">Active ({row.journeySteps.length})</span>
                   </div>
                 );
               }
+              // INACTIVE STATE
               return (
-                <button onClick={(e) => { e.stopPropagation(); setSelectedLead(row); }} className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-indigo-500/10 text-indigo-300 hover:bg-indigo-500/20 transition-colors text-xs font-medium border border-indigo-500/30"><Zap size={12} /> Start Journey</button>
+                <button 
+                  onClick={(e) => { 
+                    e.stopPropagation(); 
+                    setSelectedLeadForJourney(row); 
+                  }} 
+                  className="group flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-800 hover:bg-indigo-600 hover:text-white text-slate-400 transition-all text-xs font-medium border border-slate-700 hover:border-indigo-500"
+                >
+                  <Zap size={12} className="group-hover:text-yellow-300" /> 
+                  Start Journey
+                </button>
               );
             }
           },
@@ -524,7 +662,19 @@ export default function LeadsPage() {
         data={filteredLeads}
       />
 
-      {selectedLead && workspaceId && ( <CreateJourneyModal lead={selectedLead} workspaceId={workspaceId} onClose={() => setSelectedLead(null)} onSave={() => fetchLeads()} /> )}
+      {/* DRAWERS & MODALS */}
+      {viewLead && (
+         <LeadDetailsDrawer lead={viewLead} onClose={() => setViewLead(null)} />
+      )}
+
+      {selectedLeadForJourney && workspaceId && ( 
+        <CreateJourneyModal 
+          lead={selectedLeadForJourney} 
+          workspaceId={workspaceId} 
+          onClose={() => setSelectedLeadForJourney(null)} 
+          onSave={() => fetchLeads()} 
+        /> 
+      )}
       {isCreateModalOpen && workspaceId && ( <NewLeadModal workspaceId={workspaceId} onClose={() => setIsCreateModalOpen(false)} onSave={() => fetchLeads()} /> )}
       {isImportModalOpen && workspaceId && ( <ImportLeadsModal workspaceId={workspaceId} onClose={() => setIsImportModalOpen(false)} onSave={() => fetchLeads()} /> )} 
     </div>
