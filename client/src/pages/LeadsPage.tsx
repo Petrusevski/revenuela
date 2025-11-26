@@ -150,14 +150,15 @@ const LeadDetailsDrawer = ({ lead, onClose }: { lead: LeadRow; onClose: () => vo
 
 // --- COMPONENT: Export to HeyReach Modal ---
 
+// --- COMPONENT: Export to HeyReach Modal ---
+
 const ExportHeyReachModal = ({ workspaceId, onClose }: { workspaceId: string; onClose: () => void }) => {
-  const [step, setStep] = useState<"connect" | "select" | "loading">("loading");
-  const [apiKey, setApiKey] = useState("");
+  const [loading, setLoading] = useState(true); // Start loading immediately
   const [campaigns, setCampaigns] = useState<any[]>([]);
   const [selectedCampaign, setSelectedCampaign] = useState("");
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const navigate = useNavigate();
 
   const getHeaders = () => ({ 
     "Content-Type": "application/json",
@@ -165,43 +166,36 @@ const ExportHeyReachModal = ({ workspaceId, onClose }: { workspaceId: string; on
   });
 
   useEffect(() => {
-    const checkStatus = async () => {
+    const fetchCampaigns = async () => {
       try {
+        // Try to fetch campaigns using the STORED integration
         const res = await fetch(`${API_BASE}/api/integrations/heyreach/campaigns?workspaceId=${workspaceId}`, { headers: getHeaders() });
-        if (res.ok) {
-          const data = await res.json();
-          setCampaigns(data.campaigns);
-          setStep("select");
-        } else {
-          setStep("connect");
+        
+        if (res.status === 403) {
+          // 403 means not connected in backend
+          throw new Error("NOT_CONNECTED");
         }
-      } catch (e) { setStep("connect"); }
+        
+        if (!res.ok) throw new Error("Failed to load campaigns.");
+        
+        const data = await res.json();
+        setCampaigns(data.campaigns);
+      } catch (e: any) { 
+        if (e.message === "NOT_CONNECTED") {
+          setError("not_connected");
+        } else {
+          setError(e.message || "Unknown error");
+        }
+      } finally {
+        setLoading(false);
+      }
     };
-    checkStatus();
-  }, []);
-
-  const handleConnect = async () => {
-    setLoading(true);
-    try {
-      await fetch(`${API_BASE}/api/integrations/heyreach/check`, {
-        method: "POST",
-        headers: getHeaders(),
-        body: JSON.stringify({ workspaceId, apiKey })
-      });
-      
-      const res = await fetch(`${API_BASE}/api/integrations/heyreach/campaigns?workspaceId=${workspaceId}`, { headers: getHeaders() });
-      if (!res.ok) throw new Error("Could not fetch campaigns. Check API Key.");
-      const data = await res.json();
-      setCampaigns(data.campaigns);
-      setStep("select");
-    } catch (e: any) { setError("Connection failed. Invalid API Key?"); }
-    finally { setLoading(false); }
-  };
+    fetchCampaigns();
+  }, [workspaceId]);
 
   const handleExport = async () => {
     if (!selectedCampaign) return;
     setLoading(true);
-    setError(null);
     try {
       const res = await fetch(`${API_BASE}/api/integrations/heyreach/export`, {
         method: "POST",
@@ -215,7 +209,7 @@ const ExportHeyReachModal = ({ workspaceId, onClose }: { workspaceId: string; on
       setSuccessMsg(`Successfully sent ${data.count} leads to HeyReach!`);
       setTimeout(onClose, 2000);
     } catch (e: any) {
-      setError(e.message);
+      alert(e.message); // Simple alert for error
     } finally {
       setLoading(false);
     }
@@ -229,50 +223,67 @@ const ExportHeyReachModal = ({ workspaceId, onClose }: { workspaceId: string; on
           <button onClick={onClose}><X className="text-slate-500 hover:text-white" size={20} /></button>
         </div>
 
-        {successMsg ? (
+        {loading && !successMsg && (
+          <div className="py-8 flex flex-col items-center text-slate-400 gap-2">
+            <Loader2 className="animate-spin text-indigo-500" size={24} />
+            <span className="text-xs">Connecting to HeyReach...</span>
+          </div>
+        )}
+
+        {successMsg && (
           <div className="p-4 bg-emerald-500/10 text-emerald-400 rounded-xl text-center font-medium border border-emerald-500/20">
             {successMsg}
           </div>
-        ) : step === "connect" ? (
-          <div className="space-y-4">
-            <p className="text-sm text-slate-400">Enter your HeyReach API Key to connect.</p>
-            <input 
-              type="password" 
-              placeholder="hr_..." 
-              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white"
-              value={apiKey}
-              onChange={e => setApiKey(e.target.value)}
-            />
-            {error && <p className="text-xs text-rose-400">{error}</p>}
+        )}
+
+        {/* ERROR STATE: Not Connected */}
+        {!loading && error === "not_connected" && (
+          <div className="text-center py-6">
+            <div className="inline-flex p-3 rounded-full bg-slate-800 text-slate-400 mb-3">
+              <AlertCircle size={24} />
+            </div>
+            <h3 className="text-white font-medium mb-1">HeyReach Not Connected</h3>
+            <p className="text-xs text-slate-400 mb-4 px-4">
+              You need to connect your HeyReach account in the Integrations settings before exporting leads.
+            </p>
             <button 
-              onClick={handleConnect} 
-              disabled={loading || !apiKey}
-              className="w-full py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-medium disabled:opacity-50"
+              onClick={() => navigate("/integrations")}
+              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-medium transition-colors"
             >
-              {loading ? "Connecting..." : "Connect & Fetch Campaigns"}
+              Go to Integrations
             </button>
           </div>
-        ) : (
+        )}
+
+        {/* SUCCESS STATE: Campaigns Loaded */}
+        {!loading && !error && !successMsg && (
           <div className="space-y-4">
-            <p className="text-sm text-slate-400">Select a campaign to add these leads to:</p>
-            <div className="max-h-60 overflow-y-auto space-y-2">
-              {campaigns.length === 0 ? (
-                <p className="text-xs text-slate-500 italic">No active campaigns found in HeyReach.</p>
-              ) : campaigns.map((c: any) => (
-                <label key={c.id} className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${selectedCampaign === c.id ? 'bg-indigo-500/10 border-indigo-500' : 'bg-slate-800 border-slate-700'}`}>
-                  <input type="radio" name="campaign" className="hidden" checked={selectedCampaign === c.id} onChange={() => setSelectedCampaign(c.id)} />
-                  <div className={`w-4 h-4 rounded-full border ${selectedCampaign === c.id ? 'border-indigo-500 bg-indigo-500' : 'border-slate-500'}`} />
-                  <span className="text-sm text-slate-200">{c.name || "Untitled Campaign"}</span>
-                </label>
-              ))}
-            </div>
-            {error && <p className="text-xs text-rose-400">{error}</p>}
+            <p className="text-sm text-slate-400">Select a campaign to add leads to:</p>
+            
+            {campaigns.length === 0 ? (
+              <div className="p-4 border border-dashed border-slate-700 rounded-xl text-center text-slate-500 text-xs">
+                No active campaigns found in your HeyReach account.
+              </div>
+            ) : (
+              <div className="max-h-60 overflow-y-auto space-y-2 pr-1">
+                {campaigns.map((c: any) => (
+                  <label key={c.id} className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${selectedCampaign === c.id ? 'bg-indigo-500/10 border-indigo-500' : 'bg-slate-800 border-slate-700 hover:border-slate-600'}`}>
+                    <input type="radio" name="campaign" className="hidden" checked={selectedCampaign === c.id} onChange={() => setSelectedCampaign(c.id)} />
+                    <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${selectedCampaign === c.id ? 'border-indigo-500 bg-indigo-500' : 'border-slate-500'}`}>
+                      {selectedCampaign === c.id && <div className="w-1.5 h-1.5 bg-white rounded-full" />}
+                    </div>
+                    <span className="text-sm text-slate-200">{c.name || "Untitled Campaign"}</span>
+                  </label>
+                ))}
+              </div>
+            )}
+
             <button 
               onClick={handleExport} 
-              disabled={loading || !selectedCampaign}
-              className="w-full py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-medium disabled:opacity-50"
+              disabled={!selectedCampaign}
+              className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-semibold text-sm disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-indigo-500/20"
             >
-              {loading ? "Exporting..." : "Export Leads"}
+              Export Leads
             </button>
           </div>
         )}
@@ -280,7 +291,6 @@ const ExportHeyReachModal = ({ workspaceId, onClose }: { workspaceId: string; on
     </div>
   );
 };
-
 // --- COMPONENT: Import Leads Modal ---
 
 const ImportLeadsModal = ({ workspaceId, onClose, onSave }: { workspaceId: string, onClose: () => void, onSave: () => void }) => {

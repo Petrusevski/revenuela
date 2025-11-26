@@ -66,6 +66,20 @@ const providerCheckers: Record<
     } catch (e: any) { return { success: false, message: e.message }; }
   },
 
+  // ✅ ADDED: HeyReach Checker Logic
+  heyreach: async (auth) => {
+    if (!auth?.apiKey) return { success: false, message: "Missing API Key" };
+    try {
+      // Verify key by fetching campaigns (lightweight call)
+      await axios.get("https://api.heyreach.io/api/public/campaign/getAll", {
+        headers: { "X-API-KEY": auth.apiKey.trim() }
+      });
+      return { success: true };
+    } catch (e: any) {
+      return { success: false, message: e.response?.data?.message || "Invalid API Key" };
+    }
+  },
+
   clay: async (auth) => {
     if (!auth?.apiKey || !auth?.tableId) return { success: false, message: "Missing API Key or Table ID" };
     
@@ -123,12 +137,24 @@ router.get("/", async (req: Request, res: Response) => {
 
 router.post("/:provider/check", async (req: Request, res: Response) => {
   const { provider } = req.params;
-  const { workspaceId } = req.body;
+  const { workspaceId } = req.body; // The frontend VaultModal sends auth fields here in body too
 
   if (!workspaceId) return res.status(400).json({ error: "workspaceId is required" });
 
+  // Check if we already have it, or if we are receiving new credentials to test
   let conn = await prisma.integrationConnection.findFirst({ where: { workspaceId, provider } });
-  const authData = parseAuthData(conn?.authData ?? null);
+  
+  // If body contains auth fields (e.g. apiKey), use them. Otherwise use stored.
+  // NOTE: The body usually contains { workspaceId, apiKey: "..." } from the frontend Vault
+  const incomingAuth = { ...req.body };
+  delete incomingAuth.workspaceId; // remove non-auth field
+
+  let authData = parseAuthData(conn?.authData ?? null);
+  
+  // If new credentials provided, prioritize them for the check
+  if (Object.keys(incomingAuth).length > 0) {
+      authData = incomingAuth;
+  }
   
   let result: CheckerResult = { success: false, message: "Unknown provider" };
   
@@ -145,14 +171,28 @@ router.post("/:provider/check", async (req: Request, res: Response) => {
 
   const newStatus: ProviderStatus = result.success ? "connected" : "not_connected";
 
+  // Update or Create Connection Record
   if (!conn) {
-    conn = await prisma.integrationConnection.create({
-      data: { workspaceId, provider, status: newStatus, authData: null },
-    });
-  } else if (conn.status !== newStatus) {
+    // Only create if we actually have auth data to save
+    if (result.success) {
+        conn = await prisma.integrationConnection.create({
+            data: { 
+                workspaceId, 
+                provider, 
+                status: newStatus, 
+                authData: JSON.stringify(authData) // Store valid credentials
+            },
+        });
+    }
+  } else {
+    // Update existing
+    const updateData: any = { status: newStatus };
+    if (result.success && Object.keys(incomingAuth).length > 0) {
+        updateData.authData = JSON.stringify(authData); // Update stored credentials if they changed
+    }
     await prisma.integrationConnection.update({
       where: { id: conn.id },
-      data: { status: newStatus },
+      data: updateData,
     });
   }
 
@@ -164,7 +204,7 @@ router.post("/:provider/check", async (req: Request, res: Response) => {
     });
   }
 
-  return res.json({ provider, status: newStatus, hasAuth: !!conn.authData });
+  return res.json({ provider, status: newStatus, hasAuth: true });
 });
 
 router.post("/:provider/disconnect", async (req: Request, res: Response) => {
@@ -259,6 +299,8 @@ router.post("/:provider/sync", async (req: Request, res: Response) => {
   }
 });
 
+// --- HEYREACH ROUTES (Using Stored Credentials) ---
+
 // 1. GET CAMPAIGNS (Proxy)
 router.get("/heyreach/campaigns", async (req: Request, res: Response) => {
   const { workspaceId } = req.query;
@@ -311,13 +353,11 @@ router.post("/heyreach/export", async (req: Request, res: Response) => {
     // C. Push to HeyReach
     const result = await heyReachService.exportLeadsToCampaign(auth.apiKey, campaignId, leads);
 
-    // D. Optional: Update Lead Status or Add Activity Log
-    // await prisma.lead.updateMany(...)
-
     return res.json(result);
 
   } catch (error: any) {
     return res.status(500).json({ error: error.message });
   }
 });
+
 export default router;
