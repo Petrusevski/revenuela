@@ -16,35 +16,42 @@ async function processSheetLeads(workspaceId: string, rawLeads: any[]) {
     if (!row.email) continue;
     
     const fullName = row.name || `${row.firstName || ''} ${row.lastName || ''}`.trim();
+    
     // Check if lead exists to preserve ID, otherwise gen new one
-    const existing = await prisma.lead.findFirst({ where: { workspaceId, email: row.email }});
+    // We try to match by email within the workspace
+    const existing = await prisma.lead.findFirst({ 
+      where: { workspaceId, email: row.email }
+    });
+
     const customId = existing?.id || `RVN-${uuidv4().split("-")[0].toUpperCase()}`;
 
-    // UPSERT: Updates existing leads (new columns) or creates new ones
-    await prisma.lead.upsert({
-      where: { 
-        // We need a unique constraint. If your schema doesn't have @@unique([workspaceId, email]),
-        // we use the ID if found, or a fallback unique lookup.
-        // Ideally, schema should have: @@unique([workspaceId, email])
-        id: customId 
-      },
-      update: {
-        fullName: fullName || undefined,
-        company: row.company || undefined,
-        title: row.title || undefined,
-        // Add other fields here if you map them in googleSheets.ts (e.g. phone)
-      },
-      create: {
-        id: customId,
-        workspaceId,
-        email: row.email,
-        fullName: fullName || "Unknown",
-        company: row.company || "",
-        title: row.title || "",
-        source: "Google Sheets",
-        status: "new"
-      }
-    });
+    // UPSERT Logic:
+    // Since we might not have a unique constraint on [workspaceId, email] in schema yet,
+    // we use update if ID exists, otherwise create.
+    if (existing) {
+      await prisma.lead.update({
+        where: { id: existing.id },
+        data: {
+          fullName: fullName || undefined,
+          company: row.company || undefined,
+          title: row.title || undefined,
+          // Add any other fields you map in googleSheets.ts here
+        }
+      });
+    } else {
+      await prisma.lead.create({
+        data: {
+          id: customId,
+          workspaceId,
+          email: row.email,
+          fullName: fullName || "Unknown",
+          company: row.company || "",
+          title: row.title || "",
+          source: "Google Sheets",
+          status: "new"
+        }
+      });
+    }
     count++;
   }
   return count;
@@ -122,7 +129,7 @@ router.post("/", async (req: Request, res: Response) => {
   }
 });
 
-// 3. SYNC GSHEET (Initial Setup)
+// 3. SYNC GSHEET (Initial Setup - SAVES URL NOW)
 router.post("/sync-gsheet", async (req: Request, res: Response) => {
   try {
     const { workspaceId, sheetUrl } = req.body;
@@ -134,26 +141,29 @@ router.post("/sync-gsheet", async (req: Request, res: Response) => {
     // A. Process Data
     const count = await processSheetLeads(workspaceId, rawLeads);
 
-    // B. SAVE CONNECTION (So we can refresh later)
-    await prisma.integrationConnection.upsert({
-      where: { 
-        // Assuming you might want 1 sheet per workspace for now, or add a unique constraint in schema on [workspaceId, provider]
-        // For now, we find first or create. Ideally schema needs @@unique([workspaceId, provider])
-        id: `gsheet-${workspaceId}` // Synthetic ID or rely on findFirst logic below if schema differs
-      },
-      update: {
-        authData: JSON.stringify({ sheetUrl }),
-        status: "connected",
-        updatedAt: new Date()
-      },
-      create: {
-        id: `gsheet-${workspaceId}`, // Ensure ID fits your schema type (CUID usually required, so let's use findFirst logic instead if this fails)
-        workspaceId,
-        provider: "google_sheets",
-        status: "connected",
-        authData: JSON.stringify({ sheetUrl })
-      }
+    // B. SAVE CONNECTION (Crucial Step!)
+    // We check if a GSheet connection exists, if so update it, else create it.
+    const existingConn = await prisma.integrationConnection.findFirst({
+      where: { workspaceId, provider: "google_sheets" }
     });
+
+    const authDataStr = JSON.stringify({ sheetUrl });
+
+    if (existingConn) {
+      await prisma.integrationConnection.update({
+        where: { id: existingConn.id },
+        data: { authData: authDataStr, status: "connected", updatedAt: new Date() }
+      });
+    } else {
+      await prisma.integrationConnection.create({
+        data: {
+          workspaceId,
+          provider: "google_sheets",
+          status: "connected",
+          authData: authDataStr
+        }
+      });
+    }
 
     return res.json({ success: true, count });
   } catch (error: any) {
@@ -162,7 +172,7 @@ router.post("/sync-gsheet", async (req: Request, res: Response) => {
   }
 });
 
-// 4. REFRESH SYNC (The New Button)
+// 4. REFRESH SYNC (The Button)
 router.post("/sync-refresh", async (req: Request, res: Response) => {
   const { workspaceId } = req.body;
   if (!workspaceId) return res.status(400).json({ error: "Missing workspaceId" });
@@ -174,7 +184,7 @@ router.post("/sync-refresh", async (req: Request, res: Response) => {
     });
 
     if (!conn || !conn.authData) {
-      return res.status(404).json({ error: "No Google Sheet connected yet." });
+      return res.status(404).json({ error: "No Google Sheet connected yet. Please run Import first." });
     }
 
     // 2. Get URL
@@ -217,7 +227,6 @@ router.post("/upload-csv", upload.single("file"), async (req: Request, res: Resp
         const fullName = `${row["First Name"]||''} ${row["Last Name"]||''}`.trim() || email;
         const customId = `RVN-${uuidv4().split("-")[0].toUpperCase()}`;
 
-        // Simple create for CSV (ignores duplicates)
         try {
           await prisma.lead.create({
             data: {
