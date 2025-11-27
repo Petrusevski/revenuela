@@ -10,7 +10,7 @@ type ToolPerf = {
   role: string;
   leadsInfluenced: number;
   customersWon: number;
-  mrr: string; // already formatted, e.g. "€3,950"
+  mrr: string;
   replyRate?: string;
   meetingRate?: string;
 };
@@ -18,7 +18,7 @@ type ToolPerf = {
 type TopWorkflow = {
   id: string;
   label: string;
-  mrr: string; // formatted
+  mrr: string;
   customers: number;
   summary: string;
 };
@@ -37,7 +37,8 @@ type PerformanceApiResponse = {
 };
 
 const API_BASE = API_BASE_URL;
-const WORKSPACE_ID = "demo-workspace-1"; // TODO: replace with real workspace id
+// In a real app, you would get this from your Auth Context
+const WORKSPACE_ID = "demo-workspace-1"; 
 
 export default function PerformancePage() {
   const [tools, setTools] = useState<ToolPerf[]>([]);
@@ -62,7 +63,6 @@ export default function PerformancePage() {
 
         if (!res.ok) {
           let message = `Performance API error (${res.status})`;
-
           try {
             if (contentType.includes("application/json")) {
               const errJson = await res.json();
@@ -78,15 +78,12 @@ export default function PerformancePage() {
           } catch {
             // ignore parsing errors
           }
-
           throw new Error(message);
         }
 
         if (!contentType.includes("application/json")) {
-          const text = await res.text();
-          console.error("Performance API returned non-JSON:", text);
           throw new Error(
-            "Performance API returned non-JSON response. Check that /api/performance returns JSON."
+            "Performance API returned non-JSON response."
           );
         }
 
@@ -98,8 +95,7 @@ export default function PerformancePage() {
       } catch (err: any) {
         console.error("Failed to load performance:", err);
         setErrorMessage(
-          err?.message ||
-            "Failed to load performance data. Check that the backend /api/performance route is running."
+          err?.message || "Failed to load performance data."
         );
         setStatus("error");
       }
@@ -119,14 +115,14 @@ export default function PerformancePage() {
 
   const totalLeadsInfluenced = summary?.totalLeadsInfluenced ?? 0;
   const totalMrrFormatted = summary?.totalMrrFormatted ?? "€0";
-  const prospectingCount = summary?.prospectingCount ?? prospectingTools.length;
-  const outboundCount = summary?.outboundCount ?? outboundTools.length;
+  const prospectingCount = summary?.prospectingCount ?? 0;
+  const outboundCount = summary?.outboundCount ?? 0;
 
   return (
     <div>
       <PageHeader
         title="Tool Performance"
-        subtitle="Measure how each prospecting and outbound tool contributes to meetings, opportunities, and revenue — using Revenuela IDs as the common key."
+        subtitle="Measure how each prospecting and outbound tool contributes to meetings, opportunities, and revenue."
       />
 
       {status === "loading" && !tools.length && (
@@ -147,9 +143,9 @@ export default function PerformancePage() {
           label="Prospecting tools measured"
           value={prospectingCount.toString()}
           trend={
-            prospectingTools.length
+            prospectingCount > 0
               ? prospectingTools.map((t) => t.name).join(", ")
-              : "Awaiting data"
+              : "No tools connected"
           }
           trendType="neutral"
         />
@@ -157,22 +153,22 @@ export default function PerformancePage() {
           label="Outbound tools measured"
           value={outboundCount.toString()}
           trend={
-            outboundTools.length
+            outboundCount > 0
               ? outboundTools.map((t) => t.name).join(", ")
-              : "Awaiting data"
+              : "No tools connected"
           }
           trendType="neutral"
         />
         <StatCard
           label="Leads influenced (last 30d)"
           value={totalLeadsInfluenced.toLocaleString("de-DE")}
-          trend="Approximation based on workspace activity"
+          trend="Based on workspace activity"
           trendType="neutral"
         />
         <StatCard
           label="New MRR from measured workflows"
           value={totalMrrFormatted}
-          trend="Summed from closed won deals in this workspace"
+          trend="Summed from closed won deals"
           trendType="up"
         />
       </section>
@@ -186,8 +182,7 @@ export default function PerformancePage() {
           </h2>
           <p className="text-xs text-slate-400 mb-4">
             Tools that discover and enrich leads before they enter outbound
-            sequences. Revenuela measures how many of their IDs eventually
-            become customers.
+            sequences.
           </p>
 
           <div className="space-y-3 text-xs">
@@ -231,10 +226,10 @@ export default function PerformancePage() {
               </div>
             ))}
 
-            {!prospectingTools.length && (
-              <div className="text-[11px] text-slate-500">
-                No prospecting tools detected yet. Once integrations like Clay
-                or Apollo are connected and used, they will show up here.
+            {!prospectingTools.length && status === "idle" && (
+              <div className="rounded-xl border border-dashed border-slate-800 p-6 text-center text-[11px] text-slate-500">
+                No prospecting tools detected. Connect integrations like Clay or
+                Apollo to see their performance here.
               </div>
             )}
           </div>
@@ -246,8 +241,7 @@ export default function PerformancePage() {
             Outbound tools
           </h2>
           <p className="text-xs text-slate-400 mb-4">
-            Tools that send LinkedIn or email sequences. Revenuela measures
-            replies, meetings, and revenue for IDs that touch each tool.
+            Tools that send LinkedIn or email sequences.
           </p>
 
           <div className="space-y-3 text-xs">
@@ -290,24 +284,23 @@ export default function PerformancePage() {
               </div>
             ))}
 
-            {!outboundTools.length && (
-              <div className="text-[11px] text-slate-500">
-                No outbound tools detected yet. Once integrations like HeyReach
-                or Lemlist are connected and used, they will show up here.
+            {!outboundTools.length && status === "idle" && (
+              <div className="rounded-xl border border-dashed border-slate-800 p-6 text-center text-[11px] text-slate-500">
+                No outbound tools detected. Connect integrations like HeyReach
+                or Lemlist to see their performance here.
               </div>
             )}
           </div>
         </div>
       </section>
 
-      {/* Top workflows (summary) */}
+      {/* Top workflows */}
       <section className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4 mb-4">
         <h2 className="text-sm font-semibold text-slate-100 mb-1">
-          Top 5 best-performing workflows
+          Top Performing Workflows
         </h2>
         <p className="text-xs text-slate-400 mb-4">
-          Workflows are evaluated by the revenue they influence and how
-          efficiently they move Revenuela IDs from prospecting to closed won.
+          Workflows evaluated by revenue influence.
         </p>
 
         <div className="space-y-3 text-xs">
@@ -326,10 +319,9 @@ export default function PerformancePage() {
             </div>
           ))}
 
-          {!topWorkflows.length && (
+          {!topWorkflows.length && status === "idle" && (
             <div className="text-[11px] text-slate-500">
-              No workflows scored yet. Once workflows produce opportunities and
-              closed won deals, the best performers will appear here.
+              No won deals yet to score workflows.
             </div>
           )}
         </div>

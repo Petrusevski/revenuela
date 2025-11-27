@@ -3,16 +3,14 @@ import { useNavigate } from "react-router-dom";
 import { 
   Bell, 
   Search, 
-  Sparkles, 
   LogOut, 
   Settings, 
   User, 
-  Menu, // Added import
+  Menu, 
 } from "lucide-react";
 
 interface TopbarProps {
-  onAskAssistant?: () => void;
-  onMenuClick?: () => void; // Added Prop
+  onMenuClick?: () => void;
 }
 
 const API_BASE =
@@ -27,7 +25,7 @@ type Notification = {
   createdAt: string;
 };
 
-export default function Topbar({ onAskAssistant, onMenuClick }: TopbarProps) {
+export default function Topbar({ onMenuClick }: TopbarProps) {
   const [profileOpen, setProfileOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const profileRef = useRef<HTMLDivElement>(null);
@@ -133,7 +131,7 @@ export default function Topbar({ onAskAssistant, onMenuClick }: TopbarProps) {
   return (
     <header className="h-16 border-b border-slate-800 flex items-center px-4 md:px-6 bg-slate-950/80 backdrop-blur z-40 sticky top-0">
       
-      {/* Mobile Sidebar Toggle - NEW */}
+      {/* Mobile Sidebar Toggle */}
       <button 
         onClick={onMenuClick}
         className="md:hidden mr-3 text-slate-400 hover:text-white"
@@ -143,7 +141,7 @@ export default function Topbar({ onAskAssistant, onMenuClick }: TopbarProps) {
 
       {/* Search Bar */}
       <div className="flex-1 flex items-center gap-3">
-        <div className="relative max-w-md w-full hidden sm:block"> {/* Hidden on very small screens, visible on SM+ */}
+        <div className="relative max-w-md w-full hidden sm:block">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
           <input
             type="text"
@@ -151,7 +149,7 @@ export default function Topbar({ onAskAssistant, onMenuClick }: TopbarProps) {
             className="w-full bg-slate-900 border border-slate-700 rounded-xl pl-10 pr-4 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition-all"
           />
         </div>
-        {/* Mobile Search Icon (optional replacement for bar) */}
+        {/* Mobile Search Icon */}
         <button className="sm:hidden text-slate-400">
            <Search size={20} />
         </button>
@@ -160,15 +158,6 @@ export default function Topbar({ onAskAssistant, onMenuClick }: TopbarProps) {
       {/* Right Actions */}
       <div className="flex items-center gap-3 md:gap-4">
         
-        {/* AI Assistant Button */}
-        <button
-          className="hidden md:inline-flex items-center gap-2 text-xs font-medium px-3 py-2 rounded-full bg-gradient-to-r from-indigo-500 via-fuchsia-500 to-cyan-400 text-slate-950 shadow-lg shadow-indigo-500/20 hover:opacity-90 transition-opacity"
-          onClick={onAskAssistant}
-        >
-          <Sparkles size={14} />
-          <span>Ask Revenuela</span>
-        </button>
-
         {/* Notifications Dropdown */}
         <div className="relative" ref={notifRef}>
           <button

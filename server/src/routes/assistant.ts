@@ -7,28 +7,46 @@ import { prisma } from "../db";
 
 const router = Router();
 
+// Constants shared with performance.ts logic
+const PROSPECTING_PROVIDERS = ["clay", "apollo", "zoominfo"];
+const OUTBOUND_PROVIDERS = ["heyreach", "lemlist", "instantly"];
+
+const PROVIDER_LABELS: Record<string, string> = {
+  clay: "Clay",
+  apollo: "Apollo",
+  zoominfo: "ZoomInfo",
+  heyreach: "HeyReach",
+  lemlist: "Lemlist",
+  instantly: "Instantly",
+};
+
 /**
- * Helper: build a lightweight workspace context object
- * for the AI to analyze. All DB calls are wrapped in try/catch
- * so missing tables or fields won't crash the endpoint.
+ * Helper to strip markdown code blocks from LLM output
+ */
+function cleanJsonOutput(raw: string): string {
+  // Remove ```json at start and ``` at end, or just ```
+  return raw.replace(/^```json\s*/, "").replace(/^```\s*/, "").replace(/\s*```$/, "");
+}
+
+/**
+ * Helper: build a rich workspace context object
  */
 async function buildWorkspaceContext(workspaceId?: string) {
   const workspaceContext: any = {
     counts: {},
+    toolStats: [],
   };
 
-  // Workflows + nodes + edges (if model exists)
+  if (!workspaceId) return workspaceContext;
+
   try {
+    // 1. Fetch Workflows
     const workflows = await prisma.workflow.findMany({
-      where: workspaceId ? { workspaceId } : undefined,
-      include: {
-        nodes: true,
-        edges: true,
-      },
-      take: 50,
+      where: { workspaceId },
+      include: { nodes: true, edges: true },
+      take: 20,
     });
 
-    // Reduce to a lighter structure so we don't send massive payloads
     workspaceContext.workflows = workflows.map((w: any) => ({
       id: w.id,
       name: w.name,
@@ -40,134 +58,127 @@ async function buildWorkspaceContext(workspaceId?: string) {
         type: n.type,
         label: n.label,
       })),
-      edges: (w.edges || []).map((e: any) => ({
-        id: e.id,
-        sourceId: e.sourceNodeId ?? e.sourceId,
-        targetId: e.targetNodeId ?? e.targetId,
-      })),
     }));
-
     workspaceContext.counts.workflows = workflows.length;
+
+    // 2. Fetch Lead Counts & Revenue
+    const [leadCount, wonDeals, integrations] = await Promise.all([
+      (prisma as any).lead?.count({ where: { workspaceId } }).catch(() => 0),
+      prisma.deal.findMany({ where: { workspaceId, stage: "won" } }),
+      prisma.integrationConnection.findMany({
+        where: { workspaceId },
+        select: { provider: true },
+      }),
+    ]);
+
+    workspaceContext.counts.leads = leadCount;
+    workspaceContext.counts.wonDeals = wonDeals.length;
+    
+    // 3. Calculate Stats for Context
+    const connectedProviders = integrations
+      .map((i) => (i.provider || "").toLowerCase())
+      .filter(Boolean);
+
+    const activeProspecting = PROSPECTING_PROVIDERS.filter((p) =>
+      connectedProviders.includes(p)
+    );
+    const activeOutbound = OUTBOUND_PROVIDERS.filter((p) =>
+      connectedProviders.includes(p)
+    );
+
+    const totalWonMrr = wonDeals.reduce((sum, d) => sum + (d.amount || 0), 0);
+    const approxLeadsInfluenced = Math.round(leadCount * 0.6);
+    const halfLeads = Math.round(approxLeadsInfluenced / 2);
+
+    if (activeProspecting.length > 0) {
+      const leadsPer = Math.floor(halfLeads / activeProspecting.length);
+      const mrrPer = Math.round(totalWonMrr / 2 / activeProspecting.length);
+      activeProspecting.forEach(provider => {
+        workspaceContext.toolStats.push({
+          toolId: provider,
+          name: PROVIDER_LABELS[provider] || provider,
+          category: "Prospecting",
+          leadsInfluenced: leadsPer,
+          mrrInfluenced: mrrPer,
+        });
+      });
+    }
+
+    if (activeOutbound.length > 0) {
+      const leadsPer = Math.floor(halfLeads / activeOutbound.length);
+      const mrrPer = Math.round(totalWonMrr / 2 / activeOutbound.length);
+      activeOutbound.forEach(provider => {
+        workspaceContext.toolStats.push({
+          toolId: provider,
+          name: PROVIDER_LABELS[provider] || provider,
+          category: "Outbound",
+          leadsInfluenced: leadsPer,
+          mrrInfluenced: mrrPer,
+        });
+      });
+    }
+
+    workspaceContext.totalMrr = totalWonMrr;
+
   } catch (err) {
-    console.warn("analysis-agent: workflows not available or query failed");
+    console.warn("analysis-agent: context build failed", err);
   }
-
-  // Lead count (if leads table exists)
-  try {
-    const leadCount = await (prisma as any).lead?.count({
-      where: workspaceId ? { workspaceId } : undefined,
-    });
-    if (typeof leadCount === "number") {
-      workspaceContext.counts.leads = leadCount;
-    }
-  } catch {
-    console.warn("analysis-agent: leads count not available");
-  }
-
-  // Activity log count (if activity table exists)
-  try {
-    const activityCount = await (prisma as any).activityEvent?.count({
-      where: workspaceId ? { workspaceId } : undefined,
-    });
-    if (typeof activityCount === "number") {
-      workspaceContext.counts.activityEvents = activityCount;
-    }
-  } catch {
-    console.warn("analysis-agent: activity events not available");
-  }
-
-  // TODO: once you have a dedicated tool_stats table, fetch it here:
-  // try {
-  //   const toolStats = await prisma.toolStat.findMany({ where: { workspaceId } });
-  //   workspaceContext.toolStats = toolStats;
-  // } catch { ... }
 
   return workspaceContext;
 }
 
-/**
- * POST /api/assistant/analysis-agent
- *
- * Body:
- * {
- *   "userMessage": string,
- *   "workspaceId"?: string
- * }
- */
 router.post("/analysis-agent", async (req, res) => {
   try {
     const { userMessage, workspaceId } = req.body || {};
 
-    if (!userMessage || typeof userMessage !== "string") {
-      return res
-        .status(400)
-        .json({ error: "Missing required field: userMessage (string)" });
+    if (!userMessage) {
+      return res.status(400).json({ error: "Missing userMessage" });
     }
 
-    const effectiveWorkspaceId =
-      typeof workspaceId === "string" && workspaceId.trim().length > 0
-        ? workspaceId.trim()
-        : undefined;
-
+    const effectiveWorkspaceId = workspaceId?.trim() || undefined;
     const workspaceContext = await buildWorkspaceContext(effectiveWorkspaceId);
 
     const userPrompt = `
-User question:
-${userMessage}
+User question: ${userMessage}
 
 Workspace context (JSON):
 ${JSON.stringify(workspaceContext, null, 2)}
 `;
 
     const completion = await openai.chat.completions.create({
-      model: "gpt-4.1-mini",
+      model: "gpt-4o-mini", // or gpt-4-turbo
       temperature: 0.2,
       messages: [
-        {
-          role: "system",
-          content: REVENUELA_SYSTEM_PROMPT,
-        },
-        {
-          role: "user",
-          content: userPrompt,
-        },
+        { role: "system", content: REVENUELA_SYSTEM_PROMPT },
+        { role: "user", content: userPrompt },
       ],
     });
 
     const raw = completion.choices?.[0]?.message?.content ?? "";
+    const cleaned = cleanJsonOutput(raw);
+    
     let parsed: any;
-
     try {
-      parsed = JSON.parse(raw);
-    } catch {
-      // If the model returned plain text, wrap it in the expected JSON shape
+      parsed = JSON.parse(cleaned);
+    } catch (e) {
+      // Fallback if parsing fails
       parsed = {
-        analysis: raw || "No analysis returned by the model.",
+        analysis: raw, // Send raw text so user sees something
         keyFindings: [],
         suggestedExperiments: [],
-        warnings: [
-          "Model did not return valid JSON; response has been wrapped automatically.",
-        ],
-        metricsReference: {
-          toolsMentioned: [],
-          workflowsMentioned: [],
-        },
+        warnings: ["Response format error"],
+        metricsReference: { toolsMentioned: [], workflowsMentioned: [] },
       };
     }
 
-    // Ensure analysis string exists for the frontend
     if (!parsed.analysis || typeof parsed.analysis !== "string") {
-      parsed.analysis =
-        "The AI did not provide a top-level analysis string. Please try asking again with a more specific question.";
+      parsed.analysis = "The AI provided data but no text analysis.";
     }
 
     return res.json(parsed);
   } catch (err: any) {
     console.error("analysis-agent error", err);
-    return res.status(500).json({
-      error: "Internal AI error",
-      details: err?.message || "Unknown error",
-    });
+    return res.status(500).json({ error: "Internal AI error" });
   }
 });
 

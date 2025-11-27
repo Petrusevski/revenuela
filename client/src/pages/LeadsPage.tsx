@@ -254,18 +254,29 @@ const CreateJourneyModal = ({ lead, workspaceId, onClose, onSave }: { lead: Lead
     load();
   }, [workspaceId]);
 
-  const fetchHeyReachCampaigns = async () => {
+const fetchHeyReachCampaigns = async () => {
     setLoadingCampaigns(true);
     try {
       const res = await fetch(`${API_BASE}/api/integrations/heyreach/campaigns?workspaceId=${workspaceId}`, { headers: getHeaders() });
+      
       if (res.ok) {
         const data = await res.json();
-        setHeyReachCampaigns(data.campaigns);
+        // ✅ FIX: Safely handle different response structures
+        // If data.campaigns exists and is array -> use it
+        // If data is the array -> use it
+        // Otherwise -> empty array
+        const campaignsList = Array.isArray(data.campaigns) ? data.campaigns : (Array.isArray(data) ? data : []);
+        setHeyReachCampaigns(campaignsList);
+      } else {
+        // If error, just set empty so UI doesn't crash
+        setHeyReachCampaigns([]);
       }
-    } catch (e) { console.error("Failed to load HeyReach campaigns"); }
+    } catch (e) { 
+      console.error("Failed to load HeyReach campaigns", e);
+      setHeyReachCampaigns([]); 
+    }
     finally { setLoadingCampaigns(false); }
   };
-
   const toggleTool = (name: string) => {
     // Standard tool toggling
     if (selectedTools.includes(name)) {

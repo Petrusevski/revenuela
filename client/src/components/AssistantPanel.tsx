@@ -23,7 +23,8 @@ interface AssistantPanelProps {
 const API_BASE =
   (import.meta as any).env?.VITE_API_URL || "http://localhost:4000";
 
-const DEFAULT_WORKSPACE_ID = "demo-workspace";
+// FIX: Updated to match the ID used in your Dashboard/Performance Page
+const DEFAULT_WORKSPACE_ID = "demo-workspace-1";
 
 export default function AssistantPanel({ isOpen, onClose }: AssistantPanelProps) {
   const [messages, setMessages] = useState<Message[]>([
@@ -32,15 +33,7 @@ export default function AssistantPanel({ isOpen, onClose }: AssistantPanelProps)
       role: "assistant",
       content: `Hey, I'm Revenuela — your GTM intelligence analyst.
 
-I read your data across prospecting tools, outbound sequences, meetings, pipeline, and revenue.
-
-Ask me things like:
-
-• "Which outbound tool performed best this month?"
-• "What should I improve to increase reply rates?"
-• "Which prospecting source produces better ICP fit?"
-• "Which workflow loses the most leads?"
-• "How do Clay and Apollo compare by revenue influenced?"`,
+I read your data across prospecting tools, outbound sequences, meetings, pipeline, and revenue.`,
     },
   ]);
 
@@ -59,14 +52,12 @@ Ask me things like:
     [isOpen]
   );
 
-  // Auto-focus textarea when panel opens
   useEffect(() => {
     if (isOpen && textareaRef.current) {
       textareaRef.current.focus();
     }
   }, [isOpen]);
 
-  // Auto-scroll to the latest message
   useEffect(() => {
     if (messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
@@ -90,9 +81,7 @@ Ask me things like:
     try {
       const res = await fetch(`${API_BASE}/api/assistant/analysis-agent`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           userMessage: trimmed,
           workspaceId: DEFAULT_WORKSPACE_ID,
@@ -101,12 +90,11 @@ Ask me things like:
 
       const payload = await res.json();
 
+      // FIX: Ensure we only show the analysis text string, not the object
       const replyText =
         typeof payload?.analysis === "string"
           ? payload.analysis
-          : typeof payload === "string"
-          ? payload
-          : JSON.stringify(payload, null, 2);
+          : "I couldn't analyze the data correctly.";
 
       const assistantMessage: Message = {
         id: `a-${Date.now()}`,
@@ -120,13 +108,12 @@ Ask me things like:
         id: `err-${Date.now()}`,
         role: "assistant",
         content:
-          "Something went wrong while analyzing your GTM performance.\n\n" +
-          (err?.message || "Unknown error. Check API server logs."),
+          "Something went wrong while analyzing your GTM performance.\n" +
+          (err?.message || ""),
       };
       setMessages((prev) => [...prev, errorMessage]);
     } finally {
       setIsThinking(false);
-      // Re-focus input after response
       if (textareaRef.current) {
         textareaRef.current.focus();
       }
@@ -139,12 +126,7 @@ Ask me things like:
   };
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
-    // Shift+Enter = new line
-    if (e.key === "Enter" && e.shiftKey) {
-      return;
-    }
-
-    // Enter = send
+    if (e.key === "Enter" && e.shiftKey) return;
     if (e.key === "Enter") {
       e.preventDefault();
       void sendMessage();
@@ -159,8 +141,7 @@ Ask me things like:
             Revenuela Intelligence
           </div>
           <div className="text-[11px] text-slate-400">
-            Ask about performance, bottlenecks, and how to optimize your GTM
-            stack.
+            Ask about performance, bottlenecks, and how to optimize.
           </div>
         </div>
         <button
@@ -172,7 +153,6 @@ Ask me things like:
       </div>
 
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Messages */}
         <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3 text-sm">
           {messages.map((m) => (
             <div
@@ -184,21 +164,21 @@ Ask me things like:
               }
             >
               {m.role === "assistant" && (
-                <div className="h-7 w-7 rounded-full bg-gradient-to-br from-indigo-500 to-fuchsia-500 flex items-center justify-center text-xs">
+                <div className="h-7 w-7 rounded-full bg-gradient-to-br from-indigo-500 to-fuchsia-500 flex items-center justify-center text-xs shrink-0">
                   R
                 </div>
               )}
               <div
                 className={
                   m.role === "assistant"
-                    ? "max-w-[80%] rounded-2xl bg-slate-900 border border-slate-800 px-3 py-2 whitespace-pre-wrap text-slate-100"
-                    : "max-w-[80%] rounded-2xl bg-indigo-500 text-slate-50 px-3 py-2 whitespace-pre-wrap"
+                    ? "max-w-[85%] rounded-2xl bg-slate-900 border border-slate-800 px-3 py-2 whitespace-pre-wrap text-slate-100"
+                    : "max-w-[85%] rounded-2xl bg-indigo-500 text-slate-50 px-3 py-2 whitespace-pre-wrap"
                 }
               >
                 {m.content}
               </div>
               {m.role === "user" && (
-                <div className="h-7 w-7 rounded-full bg-slate-700 flex items-center justify-center text-xs">
+                <div className="h-7 w-7 rounded-full bg-slate-700 flex items-center justify-center text-xs shrink-0">
                   U
                 </div>
               )}
@@ -210,15 +190,12 @@ Ask me things like:
               <div className="h-5 w-5 rounded-full bg-gradient-to-br from-indigo-500 to-fuchsia-500 flex items-center justify-center text-[10px] animate-pulse">
                 …
               </div>
-              <span>Analyzing your GTM performance…</span>
+              <span>Analyzing data…</span>
             </div>
           )}
-
-          {/* Scroll anchor */}
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Input area */}
         <form
           onSubmit={handleSubmit}
           className="border-t border-slate-800 px-3 py-3 flex flex-col gap-2 bg-slate-950"
@@ -227,7 +204,7 @@ Ask me things like:
             ref={textareaRef}
             rows={2}
             className="w-full text-sm bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none"
-            placeholder='Lets talk!'
+            placeholder="Ask Revenuela..."
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}

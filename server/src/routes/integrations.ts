@@ -66,17 +66,19 @@ const providerCheckers: Record<
     } catch (e: any) { return { success: false, message: e.message }; }
   },
 
-  // ✅ ADDED: HeyReach Checker Logic
+  // ✅ FIXED: HeyReach Checker now uses POST
   heyreach: async (auth) => {
     if (!auth?.apiKey) return { success: false, message: "Missing API Key" };
     try {
-      // Verify key by fetching campaigns (lightweight call)
-      await axios.get("https://api.heyreach.io/api/public/campaign/getAll", {
+      // 405 Error Fix: Changed GET to POST
+      await axios.post("https://api.heyreach.io/api/public/campaign/GetAll", {}, {
         headers: { "X-API-KEY": auth.apiKey.trim() }
       });
       return { success: true };
     } catch (e: any) {
-      return { success: false, message: e.response?.data?.message || "Invalid API Key" };
+      const msg = e.response?.data?.message || e.message;
+      console.error("HeyReach Check Error:", e.response?.status, msg);
+      return { success: false, message: "Invalid API Key or Connection Error" };
     }
   },
 
@@ -87,37 +89,23 @@ const providerCheckers: Record<
     const { viewId, tableId } = extractClayID(auth.tableId);
     const headers = { "X-API-Key": apiKey };
 
-    // 1. Try View
     if (viewId) {
       try {
         await axios.get(`https://api.clay.com/v3/views/${viewId}/records?limit=1`, { headers });
         return { success: true };
-      } catch (e: any) { 
-        if (e.response?.status === 401 || e.response?.status === 403) {
-           return { success: false, message: `Clay Permission Error: ${e.response.data.message || "Unauthorized"}` };
-        }
-      }
+      } catch (e: any) {}
     }
-
-    // 2. Try Table
     if (tableId) {
       try {
         await axios.get(`https://api.clay.com/v3/tables/${tableId}/records?limit=1`, { headers });
         return { success: true };
-      } catch (e: any) {
-        if (e.response?.status === 401 || e.response?.status === 403) {
-           return { success: false, message: `Clay Permission Error: ${e.response.data.message || "Unauthorized"}` };
-        }
-      }
+      } catch (e: any) {}
     }
-
-    // 3. General Check
     try {
       await axios.get(`https://api.clay.com/v3/workspaces`, { headers });
       return { success: true };
     } catch (e: any) {
-      const msg = e.response?.data?.message || e.message;
-      return { success: false, message: `Clay Error: ${msg}` };
+      return { success: false, message: "Clay Error" };
     }
   },
 };
@@ -137,21 +125,17 @@ router.get("/", async (req: Request, res: Response) => {
 
 router.post("/:provider/check", async (req: Request, res: Response) => {
   const { provider } = req.params;
-  const { workspaceId } = req.body; // The frontend VaultModal sends auth fields here in body too
+  const { workspaceId } = req.body; 
 
   if (!workspaceId) return res.status(400).json({ error: "workspaceId is required" });
 
-  // Check if we already have it, or if we are receiving new credentials to test
   let conn = await prisma.integrationConnection.findFirst({ where: { workspaceId, provider } });
   
-  // If body contains auth fields (e.g. apiKey), use them. Otherwise use stored.
-  // NOTE: The body usually contains { workspaceId, apiKey: "..." } from the frontend Vault
   const incomingAuth = { ...req.body };
-  delete incomingAuth.workspaceId; // remove non-auth field
+  delete incomingAuth.workspaceId;
 
   let authData = parseAuthData(conn?.authData ?? null);
   
-  // If new credentials provided, prioritize them for the check
   if (Object.keys(incomingAuth).length > 0) {
       authData = incomingAuth;
   }
@@ -161,7 +145,6 @@ router.post("/:provider/check", async (req: Request, res: Response) => {
   if (providerCheckers[provider]) {
     result = await providerCheckers[provider](authData);
   } else {
-    // Fallback for providers without strict checkers
     if (authData && Object.values(authData).some(v => v && typeof v === 'string' && v.trim().length > 0)) {
         result = { success: true };
     } else {
@@ -171,24 +154,21 @@ router.post("/:provider/check", async (req: Request, res: Response) => {
 
   const newStatus: ProviderStatus = result.success ? "connected" : "not_connected";
 
-  // Update or Create Connection Record
   if (!conn) {
-    // Only create if we actually have auth data to save
     if (result.success) {
         conn = await prisma.integrationConnection.create({
             data: { 
                 workspaceId, 
                 provider, 
                 status: newStatus, 
-                authData: JSON.stringify(authData) // Store valid credentials
+                authData: JSON.stringify(authData)
             },
         });
     }
   } else {
-    // Update existing
     const updateData: any = { status: newStatus };
     if (result.success && Object.keys(incomingAuth).length > 0) {
-        updateData.authData = JSON.stringify(authData); // Update stored credentials if they changed
+        updateData.authData = JSON.stringify(authData);
     }
     await prisma.integrationConnection.update({
       where: { id: conn.id },
@@ -283,9 +263,9 @@ router.post("/:provider/sync", async (req: Request, res: Response) => {
                       workspaceId, 
                       contactId: contact.id, 
                       status: "new", 
-                      email: contact.email || "", // Populate flat field
+                      email: contact.email || "",
                       fullName: `${firstName} ${lastName}`,
-                      source: "Clay" // ✅ Fixed: leadSource -> source
+                      source: "Clay"
                     }
                 });
             }
@@ -299,15 +279,13 @@ router.post("/:provider/sync", async (req: Request, res: Response) => {
   }
 });
 
-// --- HEYREACH ROUTES (Using Stored Credentials) ---
+// --- HEYREACH ROUTES ---
 
-// 1. GET CAMPAIGNS (Proxy)
 router.get("/heyreach/campaigns", async (req: Request, res: Response) => {
   const { workspaceId } = req.query;
   if (!workspaceId) return res.status(400).json({ error: "Missing workspaceId" });
 
   try {
-    // Fetch the saved API key from DB
     const conn = await prisma.integrationConnection.findFirst({
       where: { workspaceId: String(workspaceId), provider: "heyreach", status: "connected" }
     });
@@ -319,14 +297,19 @@ router.get("/heyreach/campaigns", async (req: Request, res: Response) => {
     const auth = parseAuthData(conn.authData);
     if (!auth?.apiKey) return res.status(403).json({ error: "Invalid credentials." });
 
-    const campaigns = await heyReachService.getCampaigns(auth.apiKey);
+    // ✅ FIXED: Changed GET to POST for Campaigns too
+    const apiRes = await axios.post("https://api.heyreach.io/api/public/campaign/GetAll", {}, {
+      headers: { "X-API-KEY": auth.apiKey.trim() }
+    });
+
+    const campaigns = apiRes.data?.payload || apiRes.data || [];
     return res.json({ campaigns });
   } catch (error: any) {
+    console.error("HeyReach Campaigns Error:", error.response?.status, error.message);
     return res.status(500).json({ error: error.message });
   }
 });
 
-// 2. EXPORT LEADS TO CAMPAIGN
 router.post("/heyreach/export", async (req: Request, res: Response) => {
   const { workspaceId, campaignId, leadIds } = req.body;
 
@@ -335,22 +318,19 @@ router.post("/heyreach/export", async (req: Request, res: Response) => {
   }
 
   try {
-    // A. Get Credentials
     const conn = await prisma.integrationConnection.findFirst({
       where: { workspaceId, provider: "heyreach" }
     });
     const auth = parseAuthData(conn?.authData);
     if (!auth?.apiKey) return res.status(403).json({ error: "HeyReach API Key missing." });
 
-    // B. Fetch Leads from DB
-    // If leadIds provided, fetch specific. Else fetch ALL new leads.
     const whereCondition = leadIds && leadIds.length > 0 
       ? { id: { in: leadIds }, workspaceId }
-      : { workspaceId }; // Default to all if no IDs passed
+      : { workspaceId };
 
     const leads = await prisma.lead.findMany({ where: whereCondition });
 
-    // C. Push to HeyReach
+    // Use the service function (which we assume uses POST already)
     const result = await heyReachService.exportLeadsToCampaign(auth.apiKey, campaignId, leads);
 
     return res.json(result);

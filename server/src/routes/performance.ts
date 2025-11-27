@@ -3,8 +3,9 @@ import { prisma } from "../db";
 
 const router = Router();
 
-const PROSPECTING_PROVIDERS = ["clay", "apollo", "zoominfo"];
-const OUTBOUND_PROVIDERS = ["heyreach", "lemlist", "instantly"];
+// These lists are now used ONLY for categorization, not for populating the view by default.
+const PROSPECTING_PROVIDERS_LIST = ["clay", "apollo", "zoominfo"];
+const OUTBOUND_PROVIDERS_LIST = ["heyreach", "lemlist", "instantly"];
 
 const PROVIDER_LABELS: Record<string, string> = {
   clay: "Clay",
@@ -63,9 +64,10 @@ router.get("/", async (req: Request, res: Response) => {
   }
 
   try {
-    // 1) Get connected integrations for this workspace
+    // 1) Get ONLY connected integrations for this workspace
     const integrations = await prisma.integrationConnection.findMany({
       where: { workspaceId },
+      select: { provider: true },
     });
 
     const connectedProviders = integrations
@@ -78,69 +80,58 @@ router.get("/", async (req: Request, res: Response) => {
       prisma.deal.findMany({
         where: {
           workspaceId,
-          // use stage / closedAt heuristic for "won"
-        stage: { equals: "won" }
+          stage: { equals: "won" },
         },
       }),
     ]);
 
-    const totalWonMrr = wonDeals.reduce(
-      (sum, d) => sum + (d.amount || 0),
-      0
-    );
+    const totalWonMrr = wonDeals.reduce((sum, d) => sum + (d.amount || 0), 0);
     const totalCustomers = wonDeals.length;
-    const defaultCurrency =
-      (wonDeals[0] && wonDeals[0].currency) || "EUR";
+    const defaultCurrency = (wonDeals[0] && wonDeals[0].currency) || "EUR";
 
-    // For now, we approximate "leads influenced in last 30d" as a fraction
-    // of total leads. Later you can use Activities / SequenceEnrollments.
+    // Approx leads influenced (Logic can be updated to count leads by source later)
     const approxLeadsInfluenced = Math.round(leadCount * 0.6);
 
-    // 3) Build tool list
+    // 3) Build tool list based STRICTLY on connected providers
     const tools: ToolPerfApi[] = [];
 
-    const prospectingTools: string[] = PROSPECTING_PROVIDERS.filter((p) =>
+    // Filter the known categories against what is actually in the DB
+    const activeProspecting = PROSPECTING_PROVIDERS_LIST.filter((p) =>
       connectedProviders.includes(p)
     );
-    const outboundTools: string[] = OUTBOUND_PROVIDERS.filter((p) =>
+    const activeOutbound = OUTBOUND_PROVIDERS_LIST.filter((p) =>
       connectedProviders.includes(p)
     );
 
-    const prospectingCount = prospectingTools.length || PROSPECTING_PROVIDERS.length;
-    const outboundCount = outboundTools.length || OUTBOUND_PROVIDERS.length;
+    const prospectingCount = activeProspecting.length;
+    const outboundCount = activeOutbound.length;
+    const totalActiveTools = prospectingCount + outboundCount;
 
-    const effectiveProspecting = prospectingTools.length
-      ? prospectingTools
-      : PROSPECTING_PROVIDERS;
-    const effectiveOutbound = outboundTools.length
-      ? outboundTools
-      : OUTBOUND_PROVIDERS;
-
+    // Distribute metrics only if tools exist
     const halfLeads = Math.round(approxLeadsInfluenced / 2);
-    const prospectingLeadsPerTool = Math.max(
-      0,
-      Math.floor(halfLeads / effectiveProspecting.length)
-    );
-    const outboundLeadsPerTool = Math.max(
-      0,
-      Math.floor(halfLeads / effectiveOutbound.length)
-    );
+    
+    const prospectingLeadsPerTool = prospectingCount > 0 
+      ? Math.max(0, Math.floor(halfLeads / prospectingCount)) 
+      : 0;
+      
+    const outboundLeadsPerTool = outboundCount > 0 
+      ? Math.max(0, Math.floor(halfLeads / outboundCount)) 
+      : 0;
 
-    const prospectingMrrPerTool = Math.max(
-      0,
-      totalWonMrr / 2 / (effectiveProspecting.length || 1)
-    );
-    const outboundMrrPerTool = Math.max(
-      0,
-      totalWonMrr / 2 / (effectiveOutbound.length || 1)
-    );
-    const customersPerTool = Math.max(
-      0,
-      Math.floor(totalCustomers / (effectiveProspecting.length + effectiveOutbound.length || 1))
-    );
+    const prospectingMrrPerTool = prospectingCount > 0 
+      ? Math.max(0, totalWonMrr / 2 / prospectingCount) 
+      : 0;
+      
+    const outboundMrrPerTool = outboundCount > 0 
+      ? Math.max(0, totalWonMrr / 2 / outboundCount) 
+      : 0;
+      
+    const customersPerTool = totalActiveTools > 0 
+      ? Math.max(0, Math.floor(totalCustomers / totalActiveTools)) 
+      : 0;
 
-    // Prospecting tools
-    for (const provider of effectiveProspecting) {
+    // Build Prospecting Response
+    for (const provider of activeProspecting) {
       tools.push({
         id: provider,
         name: PROVIDER_LABELS[provider] || provider,
@@ -149,12 +140,12 @@ router.get("/", async (req: Request, res: Response) => {
         leadsInfluenced: prospectingLeadsPerTool,
         customersWon: customersPerTool,
         mrr: formatCurrency(prospectingMrrPerTool, defaultCurrency),
-        meetingRate: undefined, // can be filled from Activities later
+        meetingRate: undefined,
       });
     }
 
-    // Outbound tools
-    for (const provider of effectiveOutbound) {
+    // Build Outbound Response
+    for (const provider of activeOutbound) {
       tools.push({
         id: provider,
         name: PROVIDER_LABELS[provider] || provider,
@@ -163,23 +154,22 @@ router.get("/", async (req: Request, res: Response) => {
         leadsInfluenced: outboundLeadsPerTool,
         customersWon: customersPerTool,
         mrr: formatCurrency(outboundMrrPerTool, defaultCurrency),
-        replyRate: undefined, // can be filled from Activities later
+        replyRate: undefined,
         meetingRate: undefined,
       });
     }
 
-    // 4) Top workflows – for now we use a simple stub based on actual totals
-    // Later, you can replace this with real workflow scoring logic.
+    // 4) Top workflows
+    // Only show workflows if we actually have revenue
     const topWorkflows: TopWorkflowApi[] = [];
 
     if (totalWonMrr > 0) {
       topWorkflows.push({
-        id: "wf_prospecting_outbound_stripe",
-        label: "Prospecting → Outbound → CRM → Billing",
+        id: "wf_combined_revenue",
+        label: "Prospecting → Outbound → Closed Won",
         mrr: formatCurrency(totalWonMrr, defaultCurrency),
         customers: totalCustomers,
-        summary:
-          "Summed from all workflows that result in closed won deals in this workspace.",
+        summary: "Aggregated revenue from all currently active tools.",
       });
     }
 
