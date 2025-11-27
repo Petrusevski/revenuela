@@ -143,8 +143,8 @@ const BiDirectionalBeam = ({ startY, endY, delay, colorStr }: { startY: number, 
 const HeroVisualization = () => {
   const steps = [
     { icon: Search, label: "Clay / Apollo", sub: "1. Prospecting", color: "text-sky-400", stroke: "#38bdf8" },
-    { icon: Database, label: "Clearbit / ZoomInfo", sub: "2. Enrichment", color: "text-indigo-400", stroke: "#818cf8" },
-    { icon: Mail, label: "HeyReach / Lemlist", sub: "3. Outbound", color: "text-fuchsia-400", stroke: "#e879f9" },
+    { icon: Database, label: "Clearbit / Clay", sub: "2. Enrichment", color: "text-indigo-400", stroke: "#818cf8" },
+    { icon: Mail, label: "HeyReach / Smartlead", sub: "3. Outbound", color: "text-fuchsia-400", stroke: "#e879f9" },
     { icon: Briefcase, label: "HubSpot CRM", sub: "4. Deal Mgmt", color: "text-orange-400", stroke: "#fb923c" },
     { icon: CreditCard, label: "Stripe", sub: "5. Revenue", color: "text-emerald-400", stroke: "#34d399" },
   ];
