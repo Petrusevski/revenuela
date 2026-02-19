@@ -27,6 +27,7 @@ type RecentJourney = {
   createdAt: string;
 };
 
+// New types for the connected app events (Sourcing, Enrich, Outreach)
 type AppSource = "sourcing" | "enrich" | "outreach";
 
 type AppEvent = {
@@ -42,7 +43,7 @@ type DashboardResponse = {
   stages: Stage[];
   prospectingImports: ProspectingImport[];
   recentJourneys: RecentJourney[];
-  events: AppEvent[];
+  events: AppEvent[]; // Added events to the response
 };
 
 const STAGE_COLORS: Record<string, string> = {
@@ -158,7 +159,7 @@ export default function DashboardPage() {
   const recentJourneys = data?.recentJourneys ?? [];
   const events = data?.events ?? [];
 
-  // Data for GTM Stack view
+  // Logic to aggregate data for the GTM Stack view
   const stackData: Stage[] = [
     { id: "sourcing", label: "Sourcing", count: totalImports },
     { id: "enrich", label: "Enrichment", count: events.filter(e => e.source === "enrich").length },
@@ -314,11 +315,11 @@ export default function DashboardPage() {
                       <div key={item.id} className="flex items-center gap-3">
                         <div className="flex-1">
                             <div className="flex justify-between text-xs mb-1">
-                              <span className="text-slate-200">{item.source}</span>
-                              <span className="text-slate-500">{pct}%</span>
+                              <span className="text-slate-200 font-medium">{item.source}</span>
+                              <span className="text-slate-500 font-mono">{item.imports} Leads</span>
                             </div>
-                            <div className="h-1 bg-slate-800 rounded-full overflow-hidden">
-                              <div className="h-full bg-indigo-500" style={{ width: `${pct}%` }} />
+                            <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                              <div className="h-full bg-indigo-500 rounded-full" style={{ width: `${pct}%` }} />
                             </div>
                         </div>
                       </div>
