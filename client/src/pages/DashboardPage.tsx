@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import PageHeader from "../components/PageHeader";
 import StatCard from "../components/StatCard";
 import { API_BASE_URL } from "../../config";
-import { Loader2 } from "lucide-react";
+import { Loader2, Search, Sparkles, Send } from "lucide-react";
 
 const API_BASE = API_BASE_URL;
 
@@ -27,10 +27,23 @@ type RecentJourney = {
   createdAt: string;
 };
 
+// New types for the connected app events
+type AppSource = "sourcing" | "enrich" | "outreach";
+
+type AppEvent = {
+  id: string;
+  source: AppSource;
+  type: string;
+  contactName: string;
+  details: string;
+  timestamp: string;
+};
+
 type DashboardResponse = {
   stages: Stage[];
   prospectingImports: ProspectingImport[];
   recentJourneys: RecentJourney[];
+  events: AppEvent[]; // Added events to the response type
 };
 
 const STAGE_COLORS: Record<string, string> = {
@@ -40,6 +53,12 @@ const STAGE_COLORS: Record<string, string> = {
   proposal: "#f97316",
   won: "#22c55e",
   lost: "#64748b",
+};
+
+const SOURCE_CONFIG: Record<AppSource, { icon: any; color: string; bg: string }> = {
+  sourcing: { icon: Search, color: "text-blue-400", bg: "bg-blue-500/10" },
+  enrich: { icon: Sparkles, color: "text-purple-400", bg: "bg-purple-500/10" },
+  outreach: { icon: Send, color: "text-orange-400", bg: "bg-orange-500/10" },
 };
 
 function buildStagePieGradient(stages: Stage[], totalLeads: number) {
@@ -63,7 +82,6 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // 1. Fetch Workspace ID
   useEffect(() => {
     async function getWs() {
       const token = localStorage.getItem("revenuela_token");
@@ -72,7 +90,9 @@ export default function DashboardPage() {
         return;
       }
       try {
-        const res = await fetch(`${API_BASE}/api/workspaces/primary`, { headers: { Authorization: `Bearer ${token}` }});
+        const res = await fetch(`${API_BASE}/api/workspaces/primary`, { 
+          headers: { Authorization: `Bearer ${token}` }
+        });
         if(res.ok) {
           const data = await res.json();
           setWorkspaceId(data.id);
@@ -84,7 +104,6 @@ export default function DashboardPage() {
     getWs();
   }, []);
 
-  // 2. Fetch Dashboard Data
   useEffect(() => {
     if (!workspaceId) return;
 
@@ -134,6 +153,7 @@ export default function DashboardPage() {
   const prospectingImports = data?.prospectingImports ?? [];
   const totalImports = prospectingImports.reduce((sum, i) => sum + i.imports, 0);
   const recentJourneys = data?.recentJourneys ?? [];
+  const events = data?.events ?? [];
 
   return (
     <div>
@@ -148,7 +168,7 @@ export default function DashboardPage() {
         <StatCard
           label="Revenuela IDs in universe"
           value={totalLeads.toLocaleString("de-DE")}
-          trend="All leads that have touched at least one GTM tool"
+          trend="All leads from connected tools"
           trendType="neutral"
         />
         <StatCard
@@ -223,49 +243,76 @@ export default function DashboardPage() {
         </div>
       </section>
 
+      {/* New Activity Feed Section */}
       <section className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-         
          <div className="lg:col-span-2 rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
-            <h2 className="text-sm font-semibold text-slate-100 mb-4">Where prospects enter Revenuela</h2>
-            <div className="space-y-3">
-              {prospectingImports.map((item) => {
-                const pct = totalImports ? Math.round((item.imports / totalImports) * 100) : 0;
+            <h2 className="text-sm font-semibold text-slate-100 mb-4">Sourcing, Enrich & Outreach Events</h2>
+            <div className="space-y-4">
+              {events.map((event) => {
+                const Config = SOURCE_CONFIG[event.source];
+                const Icon = Config.icon;
                 return (
-                  <div key={item.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-slate-800/30 transition-colors">
-                     <div className="w-10 text-xs font-bold text-slate-500 text-right">{pct}%</div>
-                     <div className="flex-1">
-                        <div className="flex justify-between text-xs mb-1">
-                           <span className="text-slate-200 font-medium">{item.source}</span>
-                           <span className="text-slate-400">{item.imports} Leads</span>
+                  <div key={event.id} className="flex items-start gap-4 p-3 rounded-xl bg-slate-950 border border-slate-800 hover:border-slate-700 transition-colors">
+                     <div className={`p-2 rounded-lg ${Config.bg} ${Config.color}`}>
+                        <Icon size={16} />
+                     </div>
+                     <div className="flex-1 min-w-0">
+                        <div className="flex justify-between items-center mb-0.5">
+                           <span className="text-xs font-semibold text-slate-200 uppercase tracking-wider">{event.source}</span>
+                           <span className="text-[10px] text-slate-500">{new Date(event.timestamp).toLocaleString()}</span>
                         </div>
-                        <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden">
-                           <div className="h-full bg-indigo-500 rounded-full" style={{ width: `${pct}%` }} />
+                        <div className="text-sm text-slate-100 font-medium">{event.contactName}</div>
+                        <p className="text-xs text-slate-400 mt-1">{event.details}</p>
+                        <div className="mt-2 inline-flex items-center px-2 py-0.5 rounded text-[10px] bg-slate-800 text-slate-300 border border-slate-700">
+                          {event.type.replace('_', ' ')}
                         </div>
                      </div>
                   </div>
                 );
               })}
-              {prospectingImports.length === 0 && <div className="text-xs text-slate-500 text-center py-4">No import data yet.</div>}
+              {events.length === 0 && <div className="text-xs text-slate-500 text-center py-10">No app activity recorded yet.</div>}
             </div>
          </div>
 
-         <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
-            <h2 className="text-sm font-semibold text-slate-100 mb-4">Recent Journeys</h2>
-            <div className="space-y-3">
-               {recentJourneys.map(j => (
-                  <div key={j.id} className="p-3 rounded-xl bg-slate-950 border border-slate-800">
-                     <div className="flex justify-between items-center mb-1">
-                        <span className="text-xs font-mono text-indigo-300 bg-indigo-500/10 px-1.5 rounded">{j.id}</span>
-                        <span className="text-[10px] text-slate-500">{new Date(j.createdAt).toLocaleDateString()}</span>
-                     </div>
-                     <div className="text-xs text-slate-300 truncate">{j.contactName || "Unknown Contact"}</div>
-                     <div className="text-[10px] text-emerald-400 mt-1 capitalize">{j.status.replace('_', ' ')}</div>
-                  </div>
-               ))}
-               {recentJourneys.length === 0 && <div className="text-xs text-slate-500 text-center py-4">No leads found.</div>}
+         <div className="flex flex-col gap-6">
+            <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
+                <h2 className="text-sm font-semibold text-slate-100 mb-4">Lead Entry Points</h2>
+                <div className="space-y-3">
+                  {prospectingImports.map((item) => {
+                    const pct = totalImports ? Math.round((item.imports / totalImports) * 100) : 0;
+                    return (
+                      <div key={item.id} className="flex items-center gap-3">
+                        <div className="flex-1">
+                            <div className="flex justify-between text-xs mb-1">
+                              <span className="text-slate-200">{item.source}</span>
+                              <span className="text-slate-500">{pct}%</span>
+                            </div>
+                            <div className="h-1 bg-slate-800 rounded-full overflow-hidden">
+                              <div className="h-full bg-indigo-500" style={{ width: `${pct}%` }} />
+                            </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+            </div>
+
+            <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
+                <h2 className="text-sm font-semibold text-slate-100 mb-4">Recent Journeys</h2>
+                <div className="space-y-3">
+                  {recentJourneys.map(j => (
+                      <div key={j.id} className="p-3 rounded-xl bg-slate-950 border border-slate-800">
+                        <div className="flex justify-between items-center mb-1">
+                            <span className="text-xs font-mono text-indigo-300 bg-indigo-500/10 px-1.5 rounded">{j.id}</span>
+                            <span className="text-[10px] text-slate-500">{new Date(j.createdAt).toLocaleDateString()}</span>
+                        </div>
+                        <div className="text-xs text-slate-300 truncate">{j.contactName || "Unknown Contact"}</div>
+                        <div className="text-[10px] text-emerald-400 mt-1 capitalize">{j.status.replace('_', ' ')}</div>
+                      </div>
+                  ))}
+                </div>
             </div>
          </div>
-
       </section>
     </div>
   );
