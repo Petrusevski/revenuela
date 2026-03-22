@@ -44,6 +44,8 @@ async function getCurrentMembership(req: AuthenticatedRequest) {
         slug: `ws-${userId}`,
         companyName: null,
         primaryDomain: null,
+        plan: "trial",
+        trialEndsAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
         publicApiKey: `rvn_pk_${crypto.randomBytes(12).toString("hex")}`,
         webhookEndpoint: `https://api.revenuela.com/webhooks/${userId}`,
       },
@@ -68,10 +70,32 @@ async function getCurrentMembership(req: AuthenticatedRequest) {
  * GET /api/settings
  * Returns workspace + membership-level settings for the current user.
  */
+// Valid plan IDs that correspond to real pricing tiers
+const VALID_PLANS = new Set(["trial", "starter", "growth", "scale"]);
+
 router.get("/", async (req, res) => {
   try {
     const membership = await getCurrentMembership(req);
     const { workspace, ...membershipFields } = membership;
+
+    // Normalize legacy "pro" (and any unknown) plan → "trial" and persist the fix
+    let plan = workspace.plan;
+    if (!VALID_PLANS.has(plan)) {
+      plan = "trial";
+      await prisma.workspace.update({
+        where: { id: workspace.id },
+        data: {
+          plan: "trial",
+          trialEndsAt: workspace.trialEndsAt ?? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+        },
+      });
+    }
+
+    // Fetch the user's full name to include in membership
+    const user = await prisma.user.findUnique({
+      where: { id: membershipFields.userId },
+      select: { fullName: true, email: true },
+    });
 
     const workspaceSettings = {
       id: workspace.id,
@@ -81,7 +105,9 @@ router.get("/", async (req, res) => {
       defaultCurrency: workspace.defaultCurrency,
       timezone: workspace.timezone,
       industry: workspace.industry,
-      plan: workspace.plan,
+      plan,
+      trialEndsAt: workspace.trialEndsAt?.toISOString() ?? null,
+      createdAt: workspace.createdAt.toISOString(),
       seatsTotal: workspace.seatsTotal,
       seatsUsed: workspace.seatsUsed,
       billingEmail: workspace.billingEmail,
@@ -99,6 +125,8 @@ router.get("/", async (req, res) => {
       darkMode: membershipFields.darkMode,
       weeklyDigest: membershipFields.weeklyDigest,
       performanceAlerts: membershipFields.performanceAlerts,
+      userFullName: user?.fullName ?? "—",
+      userEmail: user?.email ?? "—",
     };
 
     return res.json({
@@ -204,6 +232,15 @@ router.put("/", async (req, res) => {
       }
     }
 
+    // Normalize plan on PUT response too
+    const putPlan = VALID_PLANS.has(updatedWorkspace.plan) ? updatedWorkspace.plan : "trial";
+
+    // Fetch user name for membership response
+    const putUser = await prisma.user.findUnique({
+      where: { id: membership.userId },
+      select: { fullName: true, email: true },
+    });
+
     return res.json({
       workspace: {
         id: updatedWorkspace.id,
@@ -213,7 +250,9 @@ router.put("/", async (req, res) => {
         defaultCurrency: updatedWorkspace.defaultCurrency,
         timezone: updatedWorkspace.timezone,
         industry: updatedWorkspace.industry,
-        plan: updatedWorkspace.plan,
+        plan: putPlan,
+        trialEndsAt: (updatedWorkspace as any).trialEndsAt ? new Date((updatedWorkspace as any).trialEndsAt).toISOString() : null,
+        createdAt: updatedWorkspace.createdAt.toISOString(),
         seatsTotal: updatedWorkspace.seatsTotal,
         seatsUsed: updatedWorkspace.seatsUsed,
         billingEmail: updatedWorkspace.billingEmail,
@@ -230,6 +269,8 @@ router.put("/", async (req, res) => {
         darkMode: updatedMembership.darkMode,
         weeklyDigest: updatedMembership.weeklyDigest,
         performanceAlerts: updatedMembership.performanceAlerts,
+        userFullName: putUser?.fullName ?? "—",
+        userEmail: putUser?.email ?? "—",
       },
     });
   } catch (err: any) {

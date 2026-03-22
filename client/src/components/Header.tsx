@@ -14,8 +14,8 @@ export default function Header() {
             <Fingerprint size={18} />
           </div>
           <div className="leading-tight">
-            <div className="text-sm font-semibold">Revenuela</div>
-            <div className="text-[11px] text-slate-400">Revenue OS</div>
+            <div className="text-sm font-semibold">iqpipe</div>
+            <div className="text-[11px] text-slate-400">GTM Intelligence</div>
           </div>
         </Link>
 

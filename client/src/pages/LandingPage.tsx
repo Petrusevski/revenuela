@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";import { motion, AnimatePresence } from "framer-motion";
 import { 
-  CreditCard, 
+  CreditCard,
   Database,
   Search,
   Mail,
@@ -9,11 +9,8 @@ import {
   ArrowRight,
   CheckCircle2,
   Zap,
-  Globe,
-  ShieldCheck,
-  Clock,
   TrendingUp,
-  
+
 } from "lucide-react";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
@@ -98,7 +95,7 @@ const MasterNode = () => (
     <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500/20 to-purple-500/20 text-indigo-400 ring-1 ring-indigo-500/40 shadow-lg">
       <Fingerprint size={32} />
     </div>
-    <div className="text-base font-bold text-white tracking-tight">Revenuela</div>
+    <div className="text-base font-bold text-white tracking-tight">iqpipe</div>
     <LiveIdTicker />
   </motion.div>
 );
@@ -143,8 +140,8 @@ const BiDirectionalBeam = ({ startY, endY, delay, colorStr }: { startY: number, 
 const HeroVisualization = () => {
   const steps = [
     { icon: Search, label: "Clay / Apollo", sub: "1. Prospecting", color: "text-sky-400", stroke: "#38bdf8" },
-    { icon: Database, label: "Clearbit / Clay", sub: "2. Enrichment", color: "text-indigo-400", stroke: "#818cf8" },
-    { icon: Mail, label: "HeyReach / Smartlead", sub: "3. Outbound", color: "text-fuchsia-400", stroke: "#e879f9" },
+    { icon: Database, label: "Clearbit / ZoomInfo", sub: "2. Enrichment", color: "text-indigo-400", stroke: "#818cf8" },
+    { icon: Mail, label: "HeyReach / Lemlist", sub: "3. Outbound", color: "text-fuchsia-400", stroke: "#e879f9" },
     { icon: Briefcase, label: "HubSpot CRM", sub: "4. Deal Mgmt", color: "text-orange-400", stroke: "#fb923c" },
     { icon: CreditCard, label: "Stripe", sub: "5. Revenue", color: "text-emerald-400", stroke: "#34d399" },
   ];
@@ -183,96 +180,140 @@ const HeroVisualization = () => {
   );
 };
 
-// --- NEW COMPONENT: JOURNEY TRACE (Styled for Strip Layout) ---
-const JourneyTrace = () => (
-  <div className="rounded-xl border border-slate-800 bg-slate-950/80 p-6 font-mono text-xs relative overflow-hidden shadow-2xl">
-    <div className="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-emerald-500 to-emerald-900/20" />
-    
-    {/* Header Card */}
-    <div className="flex items-center justify-between mb-8 p-3 rounded-lg bg-slate-900/50 border border-slate-800">
-      <div>
-        <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Revenuela ID</div>
-        <div className="text-white font-bold text-sm">RVN-LEAD-9F3A2C</div>
-      </div>
-      <div className="text-right">
-         <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Outcome</div>
-         <div className="flex items-center gap-1.5 text-emerald-400 font-bold">
-            <CheckCircle2 size={14} />
-            <span>€149 MRR</span>
-         </div>
-      </div>
+// --- INTEGRATIONS CAROUSEL ---
+
+const ALL_INTEGRATIONS = [
+  // Prospecting
+  { name: "Clay",          domain: "clay.com",            category: "Prospecting"   },
+  { name: "Apollo",        domain: "apollo.io",           category: "Prospecting"   },
+  { name: "PhantomBuster", domain: "phantombuster.com",   category: "Prospecting"   },
+  // Enrichment
+  { name: "Clearbit",      domain: "clearbit.com",        category: "Enrichment"    },
+  { name: "ZoomInfo",      domain: "zoominfo.com",        category: "Enrichment"    },
+  { name: "PDL",           domain: "peopledatalabs.com",  category: "Enrichment"    },
+  { name: "Hunter.io",     domain: "hunter.io",           category: "Enrichment"    },
+  { name: "Lusha",         domain: "lusha.com",           category: "Enrichment"    },
+  { name: "Cognism",       domain: "cognism.com",         category: "Enrichment"    },
+  { name: "Snov.io",       domain: "snov.io",             category: "Enrichment"    },
+  { name: "RocketReach",   domain: "rocketreach.co",      category: "Enrichment"    },
+  // LinkedIn
+  { name: "HeyReach",      domain: "heyreach.io",         category: "LinkedIn"      },
+  { name: "Expandi",       domain: "expandi.io",          category: "LinkedIn"      },
+  { name: "Dripify",       domain: "dripify.io",          category: "LinkedIn"      },
+  { name: "Waalaxy",       domain: "waalaxy.com",         category: "LinkedIn"      },
+  { name: "Meet Alfred",   domain: "meetalfred.com",      category: "LinkedIn"      },
+  // Email
+  { name: "Smartlead",     domain: "smartlead.ai",        category: "Email"         },
+  { name: "Instantly",     domain: "instantly.ai",        category: "Email"         },
+  { name: "Lemlist",       domain: "lemlist.com",         category: "Email"         },
+  { name: "Mailshake",     domain: "mailshake.com",       category: "Email"         },
+  // Multichannel
+  { name: "Outreach",      domain: "outreach.io",         category: "Multichannel"  },
+  { name: "Salesloft",     domain: "salesloft.com",       category: "Multichannel"  },
+  { name: "Reply.io",      domain: "reply.io",            category: "Multichannel"  },
+  { name: "Klenty",        domain: "klenty.com",          category: "Multichannel"  },
+  // Calling
+  { name: "Aircall",       domain: "aircall.io",          category: "Calling"       },
+  { name: "Dialpad",       domain: "dialpad.com",         category: "Calling"       },
+  { name: "Kixie",         domain: "kixie.com",           category: "Calling"       },
+  { name: "Orum",          domain: "orum.io",             category: "Calling"       },
+  // SMS
+  { name: "Twilio",        domain: "twilio.com",          category: "SMS"           },
+  { name: "Sakari",        domain: "sakari.io",           category: "SMS"           },
+  { name: "WATI",          domain: "wati.io",             category: "SMS"           },
+  // CRM
+  { name: "HubSpot",       domain: "hubspot.com",         category: "CRM"           },
+  { name: "Pipedrive",     domain: "pipedrive.com",       category: "CRM"           },
+  { name: "Salesforce",    domain: "salesforce.com",      category: "CRM"           },
+  // Billing
+  { name: "Stripe",        domain: "stripe.com",          category: "Billing"       },
+  { name: "Chargebee",     domain: "chargebee.com",       category: "Billing"       },
+  // Automation
+  { name: "n8n",           domain: "n8n.io",              category: "Automation"    },
+  { name: "Make",          domain: "make.com",            category: "Automation"    },
+];
+
+const CATEGORY_COLOR: Record<string, string> = {
+  Prospecting:  "text-violet-400  bg-violet-500/10  border-violet-500/20",
+  Enrichment:   "text-fuchsia-400 bg-fuchsia-500/10 border-fuchsia-500/20",
+  LinkedIn:     "text-blue-400    bg-blue-500/10    border-blue-500/20",
+  Email:        "text-sky-400     bg-sky-500/10     border-sky-500/20",
+  Multichannel: "text-indigo-400  bg-indigo-500/10  border-indigo-500/20",
+  Calling:      "text-orange-400  bg-orange-500/10  border-orange-500/20",
+  SMS:          "text-amber-400   bg-amber-500/10   border-amber-500/20",
+  CRM:          "text-emerald-400 bg-emerald-500/10 border-emerald-500/20",
+  Billing:      "text-yellow-400  bg-yellow-500/10  border-yellow-500/20",
+  Automation:   "text-slate-400   bg-slate-500/10   border-slate-500/20",
+};
+
+function IntegrationChip({ name, domain, category }: { name: string; domain: string; category: string }) {
+  const [err, setErr] = useState(false);
+  return (
+    <div className="flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-800 bg-slate-900/60 shrink-0">
+      {!err ? (
+        <div className="w-5 h-5 rounded bg-white flex items-center justify-center overflow-hidden shrink-0">
+          <img
+            src={`https://www.google.com/s2/favicons?domain=${domain}&sz=32`}
+            alt={name}
+            width={14}
+            height={14}
+            className="object-contain"
+            onError={() => setErr(true)}
+          />
+        </div>
+      ) : (
+        <div className="w-5 h-5 rounded bg-slate-700 flex items-center justify-center text-[9px] font-bold text-slate-300 shrink-0">
+          {name[0]}
+        </div>
+      )}
+      <span className="text-xs font-medium text-slate-300 whitespace-nowrap">{name}</span>
+      <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded-full border whitespace-nowrap ${CATEGORY_COLOR[category]}`}>
+        {category}
+      </span>
+    </div>
+  );
+}
+
+const ROW_A = ALL_INTEGRATIONS.slice(0, 20);
+const ROW_B = ALL_INTEGRATIONS.slice(20);
+
+const IntegrationsCarousel = () => (
+  <div className="space-y-3 select-none">
+    {/* Row 1 — scrolls left */}
+    <div className="relative overflow-hidden">
+      <div className="absolute left-0 top-0 bottom-0 w-24 bg-gradient-to-r from-slate-950 to-transparent z-10 pointer-events-none" />
+      <div className="absolute right-0 top-0 bottom-0 w-24 bg-gradient-to-l from-slate-950 to-transparent z-10 pointer-events-none" />
+      <motion.div
+        className="flex gap-3"
+        animate={{ x: ["0%", "-50%"] }}
+        transition={{ repeat: Infinity, ease: "linear", duration: 45 }}
+        style={{ width: "max-content" }}
+      >
+        {[...ROW_A, ...ROW_A].map((tool, i) => (
+          <IntegrationChip key={i} {...tool} />
+        ))}
+      </motion.div>
     </div>
 
-    {/* Timeline */}
-    <div className="space-y-0 relative pl-2">
-      {/* Vertical Line */}
-      <div className="absolute left-[27px] top-2 bottom-8 w-px bg-slate-800" />
-
-      {[
-        { time: "10:03", label: "Clay row imported", source: "Clay", icon: Database },
-        { time: "10:05", label: "ID synced to HeyReach", source: "Revenuela", icon: Zap },
-        { time: "11:12", label: "Positive reply received", source: "HeyReach", icon: Mail, highlight: true },
-        { time: "13:45", label: "Deal won in CRM", source: "HubSpot", icon: Briefcase },
-        { time: "13:47", label: "Subscription created", source: "Stripe", icon: CreditCard, final: true }
-      ].map((step, i) => (
-        <div key={i} className="relative flex items-center gap-4 pb-7 last:pb-0 group">
-          <div className={`relative z-10 flex h-10 w-10 shrink-0 items-center justify-center rounded-full border ${step.final ? 'border-emerald-500 bg-emerald-950 text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.3)]' : 'border-slate-800 bg-slate-900 text-slate-400'} group-hover:scale-110 group-hover:border-indigo-500/50 transition-all duration-300`}>
-            <step.icon size={16} />
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="flex justify-between items-baseline mb-0.5">
-                <span className={`font-medium truncate pr-2 ${step.highlight ? 'text-indigo-300' : step.final ? 'text-emerald-300' : 'text-slate-200'}`}>
-                    {step.label}
-                </span>
-                <span className="text-slate-600 text-[10px] whitespace-nowrap">{step.time}</span>
-            </div>
-            <div className="text-slate-500 text-[10px]">{step.source}</div>
-          </div>
-        </div>
-      ))}
+    {/* Row 2 — scrolls right */}
+    <div className="relative overflow-hidden">
+      <div className="absolute left-0 top-0 bottom-0 w-24 bg-gradient-to-r from-slate-950 to-transparent z-10 pointer-events-none" />
+      <div className="absolute right-0 top-0 bottom-0 w-24 bg-gradient-to-l from-slate-950 to-transparent z-10 pointer-events-none" />
+      <motion.div
+        className="flex gap-3"
+        animate={{ x: ["-50%", "0%"] }}
+        transition={{ repeat: Infinity, ease: "linear", duration: 40 }}
+        style={{ width: "max-content" }}
+      >
+        {[...ROW_B, ...ROW_B].map((tool, i) => (
+          <IntegrationChip key={i} {...tool} />
+        ))}
+      </motion.div>
     </div>
   </div>
 );
 
-// --- NEW COMPONENT: WORKFLOW COMPARISON (Styled for Strip Layout) ---
-const WorkflowComparison = () => (
-  <div className="space-y-4 w-full">
-    {[
-      { name: "Clay → HeyReach → CRM", mrr: "€3,950", customers: 18, rate: "24% Reply", winner: true },
-      { name: "Apollo → Lemlist → CRM", mrr: "€1,680", customers: 11, rate: "16% Reply", winner: false },
-      { name: "ZoomInfo → Instantly → CRM", mrr: "€890", customers: 5, rate: "9% Reply", winner: false },
-    ].map((flow, i) => (
-      <div key={i} className={`group relative overflow-hidden p-4 rounded-xl border transition-all duration-300 ${flow.winner ? 'border-emerald-500/30 bg-gradient-to-r from-emerald-500/10 to-transparent' : 'border-slate-800 bg-slate-900/40 hover:border-slate-700'}`}>
-        
-        {/* Progress Bar Background for Winners */}
-        {flow.winner && (
-           <div className="absolute bottom-0 left-0 h-0.5 bg-emerald-500 w-full opacity-50" />
-        )}
-
-        <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center gap-2 text-sm font-medium text-slate-200">
-            {flow.winner ? <TrendingUp size={16} className="text-emerald-400" /> : <div className="w-4" />}
-            {flow.name}
-          </div>
-          <div className={`text-sm font-bold font-mono ${flow.winner ? 'text-emerald-400' : 'text-slate-500'}`}>
-            {flow.mrr}
-          </div>
-        </div>
-        
-        <div className="flex items-center gap-4 text-xs text-slate-500 pl-6">
-            <div className="flex items-center gap-1.5">
-                <CheckCircle2 size={12} className={flow.winner ? "text-emerald-500/70" : "text-slate-700"} />
-                {flow.customers} customers
-            </div>
-            <div className="w-1 h-1 rounded-full bg-slate-800" />
-            <div>{flow.rate}</div>
-        </div>
-      </div>
-    ))}
-  </div>
-);
-
-// --- NEW COMPONENT: STOCK TICKER ---
+// --- STOCK TICKER ---
 const StockTicker = () => {
   const tickerItems = [
     { tool: "HeyReach", text: "Positive reply received", id: "9F3A2C", color: "text-fuchsia-400" },
@@ -346,7 +387,7 @@ export default function LandingPage() {
                 transition={{ delay: 0.2 }}
                 className="text-lg text-slate-400 mb-8 leading-relaxed"
               >
-                Revenuela acts as the central nervous system for your stack. We mint a <span className="text-slate-200 font-semibold">Universal ID</span> for every prospect and track their journey across every tool you use.
+                iqpipe acts as the central nervous system for your stack. We mint a <span className="text-slate-200 font-semibold">Universal ID</span> for every prospect and track their journey across every tool you use.
               </motion.p>
               <motion.div 
                 initial={{ opacity: 0, y: 20 }}
@@ -382,174 +423,471 @@ export default function LandingPage() {
         {/* --- LIVE STOCK TICKER --- */}
         <StockTicker />
 
-        {/* --- FEATURES (REDESIGNED STRIP LAYOUT) --- */}
-        <section id="features" className="bg-slate-950 py-20 md:py-32 relative">
-          {/* Decorator Line */}
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-px h-20 bg-gradient-to-b from-slate-800 to-transparent" />
+        {/* ── VP 1: Broken tool, lost revenue ────────────────────────────────── */}
+        <section className="bg-slate-950 py-24 md:py-36 relative overflow-hidden">
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-px h-24 bg-gradient-to-b from-slate-800 to-transparent" />
+          <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808008_1px,transparent_1px),linear-gradient(to_bottom,#80808008_1px,transparent_1px)] bg-[size:48px_48px]" />
 
-          <div className="mx-auto max-w-6xl px-4">
-            <div className="mb-20 md:text-center max-w-3xl mx-auto">
-              <h2 className="text-3xl md:text-5xl font-bold tracking-tight text-white mb-6">
-                Stop flying blind.
+          <div className="relative mx-auto max-w-6xl px-4 grid md:grid-cols-2 gap-16 items-center">
+            {/* Text */}
+            <motion.div
+              initial={{ opacity: 0, x: -24 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.6 }}
+            >
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs font-semibold mb-6 uppercase tracking-widest">
+                ● The $14,000 blind spot
+              </div>
+              <h2 className="text-4xl md:text-5xl font-bold text-white leading-tight mb-6">
+                A tool went silent.<br />
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-rose-400 to-orange-400">
+                  You didn't notice for 3 days.
+                </span>
               </h2>
-              <p className="text-slate-400 text-lg leading-relaxed">
-                Spreadsheets break. APIs change. Revenuela gives you a permanent source of truth for every dollar in your pipeline.
+              <p className="text-slate-400 text-lg leading-relaxed mb-6">
+                Stripe's webhook misconfigured. Instantly stopped sending on day two of the campaign. Clay imported 800 leads into a broken sequence. No alert. No log. No idea.
               </p>
-            </div>
-            
-            <div className="space-y-24 md:space-y-32">
-              
-              {/* FEATURE 1: JOURNEY TRACE (Text Left / Visual Right) */}
-              <div className="grid md:grid-cols-2 gap-12 items-center">
-                 <div className="order-2 md:order-1">
-                    <div className="h-12 w-12 rounded-2xl bg-emerald-500/20 flex items-center justify-center mb-6 border border-emerald-500/20 text-emerald-400">
-                      <Clock />
+              <p className="text-slate-300 text-lg leading-relaxed mb-8">
+                iqpipe watches every tool, every minute. The moment a tool goes quiet — you know. Before the deal does.
+              </p>
+              <ul className="space-y-3 mb-10">
+                {[
+                  "Real-time silence detection per tool",
+                  "Alarm when event rate drops below baseline",
+                  "Know within minutes, not days",
+                ].map((t) => (
+                  <li key={t} className="flex items-center gap-3 text-slate-300 text-sm">
+                    <CheckCircle2 size={17} className="text-rose-400 shrink-0" />
+                    {t}
+                  </li>
+                ))}
+              </ul>
+              <a href="/signup" className="inline-flex items-center gap-2 bg-white text-slate-950 px-6 py-3 rounded-xl font-bold text-sm hover:bg-slate-100 transition-all shadow-lg">
+                Stop flying blind <ArrowRight size={15} />
+              </a>
+            </motion.div>
+
+            {/* Visual: Pipeline health alarm panel */}
+            <motion.div
+              initial={{ opacity: 0, x: 24 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.6, delay: 0.1 }}
+              className="relative"
+            >
+              <div className="absolute -inset-4 bg-rose-500/8 blur-[60px] rounded-full pointer-events-none" />
+              <div className="rounded-2xl border border-slate-800 bg-slate-950/90 overflow-hidden shadow-2xl">
+                {/* Header */}
+                <div className="flex items-center justify-between px-5 py-3 border-b border-slate-800 bg-slate-900/60">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
+                    <span className="text-xs font-semibold text-slate-300">Pipeline Health</span>
+                  </div>
+                  <span className="text-[10px] text-slate-600">auto-refresh 30s</span>
+                </div>
+
+                {/* Summary row */}
+                <div className="grid grid-cols-4 gap-px bg-slate-800/50 border-b border-slate-800">
+                  {[
+                    { label: "Connected", val: "6", color: "text-white" },
+                    { label: "Healthy", val: "3", color: "text-emerald-400" },
+                    { label: "Warning", val: "2", color: "text-amber-400" },
+                    { label: "Silent", val: "1", color: "text-rose-400" },
+                  ].map((s) => (
+                    <div key={s.label} className="bg-slate-950 px-4 py-3 text-center">
+                      <div className={`text-xl font-bold ${s.color}`}>{s.val}</div>
+                      <div className="text-[9px] text-slate-600 mt-0.5">{s.label}</div>
                     </div>
-                    <h3 className="text-3xl font-bold text-white mb-4">Trace Every Dollar</h3>
-                    <p className="text-slate-400 text-lg leading-relaxed mb-6">
-                      "Where did this deal come from?" <br/>
-                      Stop guessing. Revenuela stitches the exact timestamped journey of every closed-won deal. From the first row in Clay to the final invoice in Stripe.
-                    </p>
-                    <ul className="space-y-3 text-slate-300 mb-8">
-                       <li className="flex items-center gap-3"><CheckCircle2 size={18} className="text-emerald-500" /> Works across multiple email addresses</li>
-                       <li className="flex items-center gap-3"><CheckCircle2 size={18} className="text-emerald-500" /> Tracks prospects switching companies</li>
-                       <li className="flex items-center gap-3"><CheckCircle2 size={18} className="text-emerald-500" /> Immune to cookie blockers</li>
-                    </ul>
-                 </div>
-                 <div className="order-1 md:order-2 relative">
-                    <div className="absolute inset-0 bg-emerald-500/20 blur-[80px] rounded-full opacity-20" />
-                    <JourneyTrace />
-                 </div>
+                  ))}
+                </div>
+
+                {/* Tool rows */}
+                <div className="divide-y divide-slate-800/50">
+                  {[
+                    { name: "Clay",      last: "12s ago",  e24: 412,  status: "Healthy", dot: "bg-emerald-400"                   },
+                    { name: "HeyReach", last: "1m ago",   e24: 93,   status: "Healthy", dot: "bg-emerald-400"                   },
+                    { name: "Instantly", last: "6m ago",   e24: 61,   status: "Warning", dot: "bg-amber-400 animate-pulse"       },
+                    { name: "HubSpot",   last: "2m ago",   e24: 34,   status: "Healthy", dot: "bg-emerald-400"                   },
+                    { name: "Stripe",    last: "3 days ago", e24: 0,  status: "SILENT",  dot: "bg-rose-500 animate-pulse"        },
+                  ].map((tool) => (
+                    <div key={tool.name} className={`flex items-center gap-3 px-5 py-3 ${tool.status === "SILENT" ? "bg-rose-500/5" : ""}`}>
+                      <span className={`w-2 h-2 rounded-full shrink-0 ${tool.dot}`} />
+                      <span className="text-xs font-medium text-slate-200 w-24 shrink-0">{tool.name}</span>
+                      <span className={`text-xs font-semibold flex-1 ${tool.status === "SILENT" ? "text-rose-400" : tool.status === "Warning" ? "text-amber-400" : "text-emerald-400"}`}>
+                        {tool.status}
+                      </span>
+                      <span className="text-xs font-bold text-slate-300 tabular-nums w-12 text-right">{tool.e24 > 0 ? tool.e24 : "—"}</span>
+                      <span className="text-[10px] text-slate-600 w-24 text-right">{tool.last}</span>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Alarm */}
+                <div className="m-4 flex gap-3 p-4 rounded-xl border border-rose-500/40 bg-rose-500/8">
+                  <div className="w-7 h-7 rounded-lg bg-rose-500/15 border border-rose-500/30 flex items-center justify-center shrink-0">
+                    <Zap size={14} className="text-rose-400" />
+                  </div>
+                  <div>
+                    <div className="text-xs font-bold text-rose-300 mb-0.5">Stripe is silent — 3 days, 0 events</div>
+                    <p className="text-[11px] text-slate-500 leading-relaxed">Expected: payment_succeeded, subscription_created. Last good event: 72h ago. Check webhook endpoint configuration.</p>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        </section>
+
+        {/* ── VP 2: Cross-tool contact lookup ────────────────────────────────── */}
+        <section className="bg-slate-950 py-24 md:py-36 border-t border-slate-900 relative overflow-hidden">
+          <div className="absolute right-0 top-1/4 w-[500px] h-[500px] bg-indigo-500/6 blur-[120px] rounded-full pointer-events-none" />
+
+          <div className="relative mx-auto max-w-6xl px-4 grid md:grid-cols-2 gap-16 items-center">
+            {/* Visual: Contact Inspector */}
+            <motion.div
+              initial={{ opacity: 0, x: -24 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.6 }}
+              className="relative order-2 md:order-1"
+            >
+              <div className="absolute -inset-4 bg-indigo-500/8 blur-[60px] rounded-full pointer-events-none" />
+              <div className="rounded-2xl border border-slate-800 bg-slate-950/90 overflow-hidden shadow-2xl">
+                {/* Header */}
+                <div className="flex items-center gap-2 px-5 py-3 border-b border-slate-800 bg-slate-900/60">
+                  <Search size={13} className="text-indigo-400" />
+                  <span className="text-xs font-semibold text-slate-300">Contact Inspector</span>
+                </div>
+
+                {/* Search box */}
+                <div className="px-5 pt-4 pb-3">
+                  <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-indigo-500/30 bg-indigo-500/5 text-xs">
+                    <Search size={12} className="text-indigo-400 shrink-0" />
+                    <span className="text-slate-300 flex-1">alice@foundry.io</span>
+                    <span className="text-[10px] text-indigo-400 font-medium">↵ Enter</span>
+                  </div>
+                </div>
+
+                {/* Contact card */}
+                <div className="mx-5 mb-3 flex items-center gap-3 p-3 rounded-xl border border-slate-800 bg-slate-900/50">
+                  <div className="h-9 w-9 rounded-lg bg-gradient-to-br from-indigo-600 to-fuchsia-600 flex items-center justify-center text-white text-xs font-bold shrink-0">AF</div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-xs font-semibold text-white">Alice Fontaine · VP Growth · Foundry Labs</div>
+                    <div className="text-[10px] text-slate-500 mt-0.5">8 events · 5 tools · 14 days to close · $18,400 ARR</div>
+                  </div>
+                  <div className="text-xs font-bold text-emerald-400 shrink-0">Closed ✓</div>
+                </div>
+
+                {/* Overlap warning */}
+                <div className="mx-5 mb-3 flex items-center gap-2 px-3 py-2 rounded-lg border border-amber-500/30 bg-amber-500/5 text-[11px] text-amber-300">
+                  <TrendingUp size={12} className="shrink-0" />
+                  Overlap detected: Instantly + HeyReach both active on this contact simultaneously.
+                </div>
+
+                {/* Timeline */}
+                <div className="mx-5 mb-5 rounded-xl border border-slate-800 overflow-hidden">
+                  {[
+                    { src: "Clay",      ev: "lead_imported",      ts: "Day 1 · 09:14", color: "text-violet-400"  },
+                    { src: "PDL",       ev: "record_enriched",    ts: "Day 1 · 09:15", color: "text-fuchsia-400" },
+                    { src: "HeyReach",  ev: "connection_sent",    ts: "Day 3 · 09:01", color: "text-blue-400"    },
+                    { src: "Instantly", ev: "email_opened",       ts: "Day 4 · 11:42", color: "text-sky-400"     },
+                    { src: "HeyReach",  ev: "reply_received",     ts: "Day 5 · 14:33", color: "text-blue-400"    },
+                    { src: "HubSpot",   ev: "deal_created",       ts: "Day 6 · 10:02", color: "text-emerald-400" },
+                    { src: "Stripe",    ev: "payment_succeeded",  ts: "Day 14 · 11:30", color: "text-amber-400"  },
+                  ].map((ev, i) => (
+                    <div key={i} className="flex items-center gap-3 px-4 py-2.5 border-b border-slate-800/50 last:border-0 hover:bg-slate-900/30 transition-colors">
+                      <span className={`text-[10px] font-semibold w-20 shrink-0 ${ev.color}`}>{ev.src}</span>
+                      <code className="text-[10px] font-mono text-slate-400 flex-1">{ev.ev}</code>
+                      <span className="text-[9px] text-slate-600 shrink-0 tabular-nums">{ev.ts}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </motion.div>
+
+            {/* Text */}
+            <motion.div
+              initial={{ opacity: 0, x: 24 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.6, delay: 0.1 }}
+              className="order-1 md:order-2"
+            >
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-xs font-semibold mb-6 uppercase tracking-widest">
+                ● The 20-minute rabbit hole
+              </div>
+              <h2 className="text-4xl md:text-5xl font-bold text-white leading-tight mb-6">
+                "What happened<br />
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-fuchsia-400">
+                  to this prospect?"
+                </span>
+              </h2>
+              <p className="text-slate-400 text-lg leading-relaxed mb-6">
+                Your rep asks. You open Clay. Then HubSpot. Then Instantly. Then HeyReach. 20 minutes later you have a partial answer and three browser tabs screaming at you.
+              </p>
+              <p className="text-slate-300 text-lg leading-relaxed mb-8">
+                With iqpipe: type the email, see the entire cross-tool journey in 3 seconds. Every event. Every tool. In order. With timestamps.
+              </p>
+              <div className="grid grid-cols-2 gap-4 mb-10">
+                {[
+                  { label: "Without iqpipe", val: "20 min", sub: "per manual lookup", bad: true },
+                  { label: "With iqpipe",    val: "3 sec",  sub: "one search, full picture", bad: false },
+                ].map((c) => (
+                  <div key={c.label} className={`p-4 rounded-xl border ${c.bad ? "border-slate-800 bg-slate-900/30" : "border-indigo-500/20 bg-indigo-500/8"}`}>
+                    <div className={`text-2xl font-bold mb-1 ${c.bad ? "text-slate-500" : "text-indigo-300"}`}>{c.val}</div>
+                    <div className="text-[10px] text-slate-500">{c.label}</div>
+                    <div className={`text-[11px] mt-1 ${c.bad ? "text-slate-600" : "text-indigo-400"}`}>{c.sub}</div>
+                  </div>
+                ))}
+              </div>
+              <a href="/signup" className="inline-flex items-center gap-2 bg-white text-slate-950 px-6 py-3 rounded-xl font-bold text-sm hover:bg-slate-100 transition-all shadow-lg">
+                Search your first contact free <ArrowRight size={15} />
+              </a>
+            </motion.div>
+          </div>
+        </section>
+
+        {/* ── VP 3: The winning stack is hidden in your data ─────────────────── */}
+        <section className="bg-slate-950 py-24 md:py-36 border-t border-slate-900 relative overflow-hidden">
+          <div className="absolute left-0 top-1/3 w-[400px] h-[400px] bg-emerald-500/5 blur-[100px] rounded-full pointer-events-none" />
+
+          <div className="relative mx-auto max-w-6xl px-4 grid md:grid-cols-2 gap-16 items-center">
+            {/* Text */}
+            <motion.div
+              initial={{ opacity: 0, x: -24 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.6 }}
+            >
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-semibold mb-6 uppercase tracking-widest">
+                ● The winner hiding in plain sight
+              </div>
+              <h2 className="text-4xl md:text-5xl font-bold text-white leading-tight mb-6">
+                One stack closes 3×<br />
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-cyan-400">
+                  more than the others.
+                </span>
+              </h2>
+              <p className="text-slate-400 text-lg leading-relaxed mb-6">
+                You're running Clay + HeyReach + Instantly. And also Apollo + email-only. And inbound. Which motion actually generates revenue? You don't know — you're tracking them all in the same CRM.
+              </p>
+              <p className="text-slate-300 text-lg leading-relaxed mb-8">
+                iqpipe tracks every lead through every stack, then shows you which combination closes fastest, at the highest rate, with the shortest sales cycle. Double down on what works. Cut what doesn't.
+              </p>
+              <ul className="space-y-3 mb-10">
+                {[
+                  "Full pipeline funnel per workflow stack",
+                  "Reply rate, meeting rate, and close rate per motion",
+                  "See where leads are dropping out at each stage",
+                ].map((t) => (
+                  <li key={t} className="flex items-center gap-3 text-slate-300 text-sm">
+                    <CheckCircle2 size={17} className="text-emerald-400 shrink-0" />
+                    {t}
+                  </li>
+                ))}
+              </ul>
+              <a href="/signup" className="inline-flex items-center gap-2 bg-white text-slate-950 px-6 py-3 rounded-xl font-bold text-sm hover:bg-slate-100 transition-all shadow-lg">
+                Find your winning stack <ArrowRight size={15} />
+              </a>
+            </motion.div>
+
+            {/* Visual: Workflow health + funnel */}
+            <motion.div
+              initial={{ opacity: 0, x: 24 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.6, delay: 0.1 }}
+              className="relative"
+            >
+              <div className="absolute -inset-4 bg-emerald-500/6 blur-[60px] rounded-full pointer-events-none" />
+              <div className="space-y-3">
+                {/* Stack comparison */}
+                <div className="rounded-2xl border border-slate-800 bg-slate-950/90 overflow-hidden shadow-2xl">
+                  <div className="px-5 py-3 border-b border-slate-800 bg-slate-900/60 flex items-center justify-between">
+                    <span className="text-xs font-semibold text-slate-300">Workflow Health · Stack Comparison</span>
+                    <span className="text-[10px] text-slate-600">Last 30d</span>
+                  </div>
+                  <div className="p-4 space-y-3">
+                    {[
+                      { name: "Clay → HeyReach → Instantly", reply: 24, close: 8.1,  rev: "$84,600", winner: true  },
+                      { name: "Apollo → Email Only",          reply: 9,  close: 3.2,  rev: "$31,200", winner: false },
+                      { name: "ZoomInfo → Instantly",         reply: 6,  close: 1.8,  rev: "$12,800", winner: false },
+                    ].map((stack, i) => (
+                      <div key={i} className={`p-3 rounded-xl border transition-all ${stack.winner ? "border-emerald-500/30 bg-emerald-500/5" : "border-slate-800 bg-slate-900/30"}`}>
+                        <div className="flex items-center justify-between mb-2">
+                          <span className={`text-xs font-semibold truncate flex-1 pr-2 ${stack.winner ? "text-white" : "text-slate-400"}`}>{stack.name}</span>
+                          {stack.winner && <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 shrink-0">WINNER</span>}
+                        </div>
+                        <div className="grid grid-cols-3 gap-2 text-[10px]">
+                          <div>
+                            <div className="text-slate-600 mb-0.5">Reply rate</div>
+                            <div className={`font-bold ${stack.winner ? "text-emerald-400" : "text-slate-500"}`}>{stack.reply}%</div>
+                          </div>
+                          <div>
+                            <div className="text-slate-600 mb-0.5">Close rate</div>
+                            <div className={`font-bold ${stack.winner ? "text-emerald-400" : "text-slate-500"}`}>{stack.close}%</div>
+                          </div>
+                          <div>
+                            <div className="text-slate-600 mb-0.5">Revenue</div>
+                            <div className={`font-bold font-mono ${stack.winner ? "text-emerald-400" : "text-slate-500"}`}>{stack.rev}</div>
+                          </div>
+                        </div>
+                        {stack.winner && (
+                          <div className="mt-2 h-1 rounded-full bg-slate-800 overflow-hidden">
+                            <motion.div
+                              initial={{ width: 0 }}
+                              whileInView={{ width: "100%" }}
+                              viewport={{ once: true }}
+                              transition={{ duration: 1, delay: 0.3 }}
+                              className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-cyan-500"
+                            />
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Funnel */}
+                <div className="rounded-2xl border border-slate-800 bg-slate-950/90 overflow-hidden shadow-2xl p-4">
+                  <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-3">Pipeline Funnel · Winning Stack</div>
+                  <div className="space-y-1.5">
+                    {[
+                      { label: "Sourced",   n: 300,  pct: 100, color: "from-violet-500 to-indigo-500"   },
+                      { label: "Enriched",  n: 287,  pct: 96,  color: "from-indigo-500 to-blue-500"     },
+                      { label: "Contacted", n: 241,  pct: 84,  color: "from-blue-500 to-sky-500"        },
+                      { label: "Replied",   n: 72,   pct: 30,  color: "from-sky-500 to-cyan-500"        },
+                      { label: "Meetings",  n: 29,   pct: 40,  color: "from-cyan-500 to-teal-500"       },
+                      { label: "Won",       n: 24,   pct: 83,  color: "from-emerald-500 to-green-500"   },
+                    ].map((s, i) => (
+                      <div key={s.label} className="flex items-center gap-3">
+                        <span className="text-[10px] text-slate-500 w-16 text-right shrink-0">{s.label}</span>
+                        <div className="flex-1 h-4 rounded bg-slate-800 overflow-hidden">
+                          <motion.div
+                            initial={{ width: 0 }}
+                            whileInView={{ width: `${s.pct}%` }}
+                            viewport={{ once: true }}
+                            transition={{ duration: 0.7, delay: i * 0.08 }}
+                            className={`h-full rounded bg-gradient-to-r ${s.color} opacity-80`}
+                          />
+                        </div>
+                        <span className="text-[10px] font-bold text-slate-300 w-8 shrink-0 tabular-nums">{s.n}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        </section>
+
+        {/* ── Integrations carousel ──────────────────────────────────────────── */}
+        <section className="border-t border-slate-900 bg-slate-950 py-16 overflow-hidden">
+          <p className="text-center text-xs font-semibold text-slate-600 uppercase tracking-widest mb-10">
+            Connects with every tool in your stack — 38 integrations
+          </p>
+          <IntegrationsCarousel />
+          <div className="text-center mt-10">
+            <a
+              href="/integrations"
+              className="inline-flex items-center gap-2 border border-slate-700 text-slate-400 hover:text-white hover:border-slate-500 px-5 py-2.5 rounded-full text-sm font-medium transition-all"
+            >
+              See all 38 integrations →
+            </a>
+          </div>
+        </section>
+
+        {/* ── Pricing ───────────────────────────────────────────────────────── */}
+        <section id="pricing" className="relative bg-slate-950 py-24 border-t border-slate-900">
+          <div className="mx-auto max-w-4xl text-center px-4">
+            <h2 className="text-4xl md:text-5xl font-bold text-white mb-4">
+              Start free.<br />
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-fuchsia-400">See value in 24 hours.</span>
+            </h2>
+            <p className="text-slate-400 text-lg mb-12">Connect your first tool in 5 minutes. No card required.</p>
+
+            <div className="grid md:grid-cols-3 gap-5 max-w-4xl mx-auto text-left">
+              {/* Starter */}
+              <div className="p-7 rounded-3xl border border-slate-800 bg-slate-900/30 flex flex-col">
+                <div className="text-sm font-semibold text-slate-400 mb-2">Starter</div>
+                <div className="text-4xl font-bold text-white mb-1">$29<span className="text-base text-slate-500 font-normal">/mo</span></div>
+                <div className="text-xs text-slate-600 mb-6">1 seat · 1 workspace · 5 apps · 10K events</div>
+                <ul className="space-y-2.5 text-sm text-slate-400 flex-1">
+                  {["1 Seat · 1 Workspace", "5 apps simultaneously", "10,000 events / month", "Live Feed + Contact Inspector", "Pipeline Health monitoring"].map((f) => (
+                    <li key={f} className="flex gap-2.5"><CheckCircle2 size={15} className="text-indigo-400 shrink-0 mt-0.5" />{f}</li>
+                  ))}
+                </ul>
+                <a href="/signup?plan=starter" className="mt-7 block w-full rounded-xl border border-slate-700 bg-slate-800 py-3 text-center text-sm font-bold text-white hover:bg-slate-700 transition-colors">
+                  Start 30-day free trial
+                </a>
               </div>
 
-              {/* FEATURE 2: WORKFLOW WARS (Visual Left / Text Right) */}
-              <div className="grid md:grid-cols-2 gap-12 items-center">
-                 <div className="relative">
-                    <div className="absolute inset-0 bg-indigo-500/20 blur-[80px] rounded-full opacity-20" />
-                    <div className="rounded-2xl border border-slate-800 bg-slate-950/50 p-8 backdrop-blur-sm">
-                        <WorkflowComparison />
-                    </div>
-                 </div>
-                 <div>
-                    <div className="h-12 w-12 rounded-2xl bg-indigo-500/20 flex items-center justify-center mb-6 border border-indigo-500/20 text-indigo-400">
-                      <TrendingUp />
-                    </div>
-                    <h3 className="text-3xl font-bold text-white mb-4">Workflow Wars</h3>
-                    <p className="text-slate-400 text-lg leading-relaxed mb-6">
-                      You run different motions: Clay for enrichment, Apollo for volume, inbound for brand. But which one actually prints money?
-                    </p>
-                    <p className="text-slate-400 text-lg leading-relaxed mb-6">
-                       Revenuela compares them side-by-side based on <strong className="text-white">Revenue per Lead</strong> and <strong className="text-white">Sales Cycle Velocity</strong>.
-                    </p>
-                    <a href="/demo" className="inline-flex items-center gap-2 text-indigo-400 hover:text-indigo-300 font-semibold group">
-                       See the dashboard <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
-                    </a>
-                 </div>
+              {/* Growth */}
+              <div className="p-7 rounded-3xl border border-slate-800 bg-slate-900/30 flex flex-col">
+                <div className="text-sm font-semibold text-slate-400 mb-2">Growth</div>
+                <div className="text-4xl font-bold text-white mb-1">$99<span className="text-base text-slate-500 font-normal">/mo</span></div>
+                <div className="text-xs text-slate-600 mb-6">3 seats · 3 workspaces · 15 apps · 500K events</div>
+                <ul className="space-y-2.5 text-sm text-slate-400 flex-1">
+                  {["3 Seats · 3 Workspaces", "15 apps simultaneously", "500,000 events / month", "All features incl. Workflow Health", "GTM Report PDF/XLSX export"].map((f) => (
+                    <li key={f} className="flex gap-2.5"><CheckCircle2 size={15} className="text-indigo-400 shrink-0 mt-0.5" />{f}</li>
+                  ))}
+                </ul>
+                <a href="/signup?plan=growth" className="mt-7 block w-full rounded-xl border border-slate-700 bg-slate-800 py-3 text-center text-sm font-bold text-white hover:bg-slate-700 transition-colors">
+                  Start 30-day free trial
+                </a>
               </div>
 
-              {/* FEATURE 3: GRID (ROI / Security / Sync) */}
-              <div className="grid md:grid-cols-3 gap-6">
-                 
-                 {/* Card 3.1: ROI */}
-                 <div className="rounded-2xl border border-slate-800 bg-slate-900/30 p-8 hover:border-slate-700 transition-all">
-                    <Globe className="text-fuchsia-400 mb-4" size={28} />
-                    <h4 className="text-xl font-bold text-white mb-2">Tool ROI</h4>
-                    <p className="text-slate-400 text-sm mb-4">Stop paying for tools that don't convert. Measure specific contribution to pipeline.</p>
-                    <div className="space-y-2 text-xs text-slate-300 border-t border-slate-800 pt-4">
-                       <div className="flex justify-between"><span>Clay Source</span> <span className="text-emerald-400 font-mono">€3,950</span></div>
-                       <div className="flex justify-between"><span>Apollo Source</span> <span className="text-emerald-400 font-mono">€1,680</span></div>
-                    </div>
-                 </div>
-
-                 {/* Card 3.2: Native Sync */}
-                 <div className="rounded-2xl border border-slate-800 bg-slate-900/30 p-8 hover:border-slate-700 transition-all">
-                    <Zap className="text-amber-400 mb-4" size={28} />
-                    <h4 className="text-xl font-bold text-white mb-2">Native Sync</h4>
-                    <p className="text-slate-400 text-sm mb-4">Keep using the tools you love. We just read the data via API & Webhooks.</p>
-                    <div className="flex flex-wrap gap-2">
-                       {['Clay','HubSpot','Stripe','HeyReach','Lemlist'].map(t => (
-                          <span key={t} className="px-2 py-1 rounded bg-slate-800 text-[10px] text-slate-300">{t}</span>
-                       ))}
-                    </div>
-                 </div>
-
-                 {/* Card 3.3: Security */}
-                 <div className="rounded-2xl border border-slate-800 bg-slate-900/30 p-8 hover:border-slate-700 transition-all">
-                    <ShieldCheck className="text-sky-400 mb-4" size={28} />
-                    <h4 className="text-xl font-bold text-white mb-2">SOC-2 Ready</h4>
-                    <p className="text-slate-400 text-sm">
-                       Enterprise-grade encryption. We only store metadata (IDs & Timestamps), keeping your PII secure in your own CRM.
-                    </p>
-                 </div>
-
+              {/* Agency */}
+              <div className="p-7 rounded-3xl border border-slate-800 bg-slate-900/30 relative overflow-hidden flex flex-col">
+                <div className="text-sm font-semibold text-slate-400 mb-2">Agency</div>
+                <div className="text-4xl font-bold text-white mb-1">$299<span className="text-base text-slate-500 font-normal">/mo</span></div>
+                <div className="text-xs text-slate-500 mb-6">Unlimited seats · workspaces · all apps · 5M events</div>
+                <ul className="space-y-2.5 text-sm text-slate-300 flex-1">
+                  {["Unlimited Seats & Workspaces", "All apps connected", "5,000,000 events / month", "All features + Workflow Health", "API access + webhooks", "Priority 24/7 support"].map((f) => (
+                    <li key={f} className="flex gap-2.5"><CheckCircle2 size={15} className="text-emerald-400 shrink-0 mt-0.5" />{f}</li>
+                  ))}
+                </ul>
+                <a href="/signup?plan=agency" className="mt-7 block w-full rounded-xl bg-white py-3 text-center text-sm font-bold text-slate-950 hover:bg-slate-100 transition-colors shadow-lg">
+                  Start 30-day free trial
+                </a>
               </div>
-
             </div>
           </div>
         </section>
 
-        {/* --- PRICING SECTION --- */}
-        <section id="pricing" className="relative bg-slate-950 py-20 border-t border-slate-900">
-           <div className="mx-auto max-w-4xl text-center px-4">
-              <h2 className="text-3xl font-bold text-white mb-6">Start with a 30-day free trial</h2>
-              <p className="text-slate-400 mb-10">Connect your tools in 15 minutes. See value in 24 hours.</p>
-              
-              <div className="grid md:grid-cols-2 gap-6 max-w-2xl mx-auto text-left">
-                 
-                 {/* GROWTH PLAN */}
-                 <div className="p-8 rounded-3xl border border-slate-800 bg-slate-900/20 flex flex-col h-full">
-                    <div className="text-lg font-semibold text-white mb-2">Growth</div>
-                    <div className="text-4xl font-bold text-white mb-6">$29<span className="text-sm text-slate-500 font-normal">/mo</span></div>
-                    
-                    <ul className="space-y-3 text-sm text-slate-400 flex-1">
-                       <li className="flex gap-3"><CheckCircle2 size={18} className="text-indigo-500 shrink-0"/> <span><strong>3 Seats</strong> included</span></li>
-                       <li className="flex gap-3"><CheckCircle2 size={18} className="text-indigo-500 shrink-0"/> <span><strong>2 Active</strong> Workspaces</span></li>
-                       <li className="flex gap-3"><CheckCircle2 size={18} className="text-indigo-500 shrink-0"/> <span><strong>Standard</strong> Tool Comparison</span></li>
-                       <li className="flex gap-3"><CheckCircle2 size={18} className="text-indigo-500 shrink-0"/> <span>Basic Journey Timeline</span></li>
-                       <li className="flex gap-3"><CheckCircle2 size={18} className="text-indigo-500 shrink-0"/> <span>Email Support</span></li>
-                    </ul>
-                    
-                    <a href="/signup?plan=growth" className="mt-8 block w-full rounded-xl border border-slate-700 bg-slate-800 py-3 text-center text-sm font-bold text-white hover:bg-slate-700 transition-colors">
-                      Start Trial
-                    </a>
-                 </div>
-
-                 {/* SCALE PLAN */}
-                 <div className="p-8 rounded-3xl border border-indigo-500/40 bg-indigo-500/5 relative overflow-hidden flex flex-col h-full shadow-2xl shadow-indigo-500/10">
-                    <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-indigo-500 to-purple-500" />
-                    <div className="absolute top-4 right-4 text-[10px] uppercase font-bold bg-indigo-500 text-white px-2 py-0.5 rounded-full tracking-wide">Most Popular</div>
-                    
-                    <div className="text-lg font-semibold text-white mb-2">Scale</div>
-                    <div className="text-4xl font-bold text-white mb-6">$299<span className="text-sm text-slate-500 font-normal">/mo</span></div>
-                    
-                    <ul className="space-y-3 text-sm text-slate-300 flex-1">
-                       <li className="flex gap-3"><CheckCircle2 size={18} className="text-emerald-400 shrink-0"/> <span><strong>Unlimited</strong> Seats & Workspaces</span></li>
-                       <li className="flex gap-3"><CheckCircle2 size={18} className="text-emerald-400 shrink-0"/> <span><strong>Advanced</strong> Attribution Models</span></li>
-                       <li className="flex gap-3"><CheckCircle2 size={18} className="text-emerald-400 shrink-0"/> <span><strong>Workflow ROI</strong> Intelligence</span></li>
-                       <li className="flex gap-3"><CheckCircle2 size={18} className="text-emerald-400 shrink-0"/> <span>Full Journey History (Unlimited)</span></li>
-                       <li className="flex gap-3"><CheckCircle2 size={18} className="text-emerald-400 shrink-0"/> <span>API Access & Webhooks</span></li>
-                       <li className="flex gap-3"><CheckCircle2 size={18} className="text-emerald-400 shrink-0"/> <span>Priority 24/7 Support</span></li>
-                    </ul>
-
-                    <a href="/signup?plan=scale" className="mt-8 block w-full rounded-xl bg-white py-3 text-center text-sm font-bold text-slate-950 hover:bg-slate-100 transition-colors shadow-lg">
-                      Start Trial
-                    </a>
-                 </div>
-
+        {/* ── Final CTA ─────────────────────────────────────────────────────── */}
+        <section className="py-24 bg-slate-950 border-t border-slate-900 relative overflow-hidden">
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(99,102,241,0.06)_0%,transparent_70%)]" />
+          <div className="relative mx-auto max-w-3xl px-4 text-center">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+            >
+              <div className="flex justify-center mb-6">
+                <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-indigo-500/20 to-purple-500/20 ring-1 ring-indigo-500/40 flex items-center justify-center text-indigo-400">
+                  <Fingerprint size={28} />
+                </div>
               </div>
-           </div>
-        </section>
-
-        {/* --- FINAL CTA --- */}
-        <section className="py-20 bg-slate-950 border-t border-slate-900">
-           <div className="mx-auto max-w-3xl px-4 text-center">
-              <h2 className="text-4xl font-bold text-white mb-8">Ready to fix your funnel?</h2>
+              <h2 className="text-4xl md:text-5xl font-bold text-white mb-5 leading-tight">
+                Your stack is already generating data.<br />
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-fuchsia-400">Start reading it.</span>
+              </h2>
+              <p className="text-slate-400 text-lg mb-10 leading-relaxed max-w-xl mx-auto">
+                Paste a webhook URL. Watch events flow in. Find your first broken tool or winning motion in the first hour — or we'll set it up with you.
+              </p>
               <div className="flex flex-col sm:flex-row justify-center gap-4">
-                 <a href="/signup" className="inline-flex h-14 items-center justify-center rounded-full bg-white text-slate-950 px-10 text-base font-bold shadow-xl hover:bg-slate-100 transition-all">
-                  Get started now
+                <a href="/signup" className="inline-flex h-14 items-center justify-center rounded-full bg-white text-slate-950 px-10 text-base font-bold shadow-xl hover:bg-slate-100 hover:scale-105 transition-all">
+                  Get started free — no card needed
+                  <ArrowRight className="ml-2 h-5 w-5" />
+                </a>
+                <a href="/demo" className="inline-flex h-14 items-center justify-center rounded-full border border-slate-700 bg-slate-900/50 px-8 text-base font-medium text-slate-200 hover:bg-slate-800 hover:border-slate-600 transition-all">
+                  See the demo first
                 </a>
               </div>
-           </div>
+              <p className="mt-5 text-xs text-slate-600">Connects in 5 minutes · paste a webhook · no code required</p>
+            </motion.div>
+          </div>
         </section>
 
       </main>

@@ -23,7 +23,7 @@ type ActivityEvent = {
     | "meeting_booked"
     | "deal_won"
     | "deal_lost";
-  revenuelaId?: string;
+  iqpipeId?: string;
   summary: string;
   details?: string;
 };
@@ -193,7 +193,7 @@ export default function ActivityPage() {
     <div>
       <PageHeader
         title="Activity"
-        subtitle="Unified timeline of GTM events across prospecting and outbound tools, stitched with Revenuela IDs."
+        subtitle="Unified timeline of GTM events across prospecting and outbound tools, stitched with iqpipe IDs."
       />
 
       {status === "loading" && !events.length && (
@@ -301,10 +301,10 @@ export default function ActivityPage() {
                         {typeLabel(ev.type)}
                       </span>
                     </div>
-                    {ev.revenuelaId && (
+                    {ev.iqpipeId && (
                       <span className="text-[11px] text-slate-500">
                         ID:{" "}
-                        <span className="text-slate-200">{ev.revenuelaId}</span>
+                        <span className="text-slate-200">{ev.iqpipeId}</span>
                       </span>
                     )}
                   </div>

@@ -86,6 +86,7 @@ router.get("/", async (req: Request, res: Response) => {
         company: company,
         source: lead.source || "Unknown",
         score: lead.fitScore ?? lead.leadScore ?? 0,
+        fitScore: lead.fitScore ?? null,
         owner: "Unassigned",
         status: lead.status,
         journeySteps: lead.journeySteps ? JSON.parse(lead.journeySteps) : null,
@@ -257,6 +258,42 @@ router.patch("/:id/journey", async (req: Request, res: Response) => {
     return res.status(500).json({ error: "Failed to save journey" });
   }
 });
+// 7. DEDUPLICATE (keep oldest by createdAt, delete duplicates)
+router.post("/deduplicate", async (req: Request, res: Response) => {
+  const { workspaceId } = req.body;
+  if (!workspaceId) return res.status(400).json({ error: "workspaceId is required" });
+
+  try {
+    const allLeads = await prisma.lead.findMany({
+      where: { workspaceId },
+      orderBy: { createdAt: "asc" },
+      select: { id: true, email: true },
+    });
+
+    const seenEmails = new Map<string, string>(); // email -> first/oldest id
+    const toDelete: string[] = [];
+
+    for (const lead of allLeads) {
+      if (!lead.email) continue;
+      const key = lead.email.toLowerCase().trim();
+      if (seenEmails.has(key)) {
+        toDelete.push(lead.id);
+      } else {
+        seenEmails.set(key, lead.id);
+      }
+    }
+
+    if (toDelete.length > 0) {
+      await prisma.lead.deleteMany({ where: { id: { in: toDelete } } });
+    }
+
+    return res.json({ success: true, removed: toDelete.length, kept: seenEmails.size });
+  } catch (error: any) {
+    console.error("Deduplicate failed:", error);
+    return res.status(500).json({ error: "Failed to deduplicate." });
+  }
+});
+
 router.get("/:id", async (req: Request, res: Response) => {
   const { id } = req.params;
 

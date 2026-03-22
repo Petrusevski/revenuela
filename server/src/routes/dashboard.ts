@@ -24,6 +24,25 @@ function bucketStatus(statusRaw: string | null | undefined): StageId {
   return "prospecting";
 }
 
+/** Normalise a raw lead.source string to a lowercase tool ID */
+function normalizeSource(raw: string | null): string {
+  if (!raw) return "unknown";
+  const s = raw.toLowerCase().trim();
+  const KNOWN = [
+    "clay", "apollo", "heyreach", "lemlist", "instantly", "smartlead",
+    "outreach", "replyio", "hubspot", "pipedrive", "closecrm", "salesforce",
+    "attio", "airtable", "stripe", "paddle", "chargebee", "lemonsqueezy",
+    "clearbit", "lusha", "dropcontact", "zoominfo", "cognism", "hunter",
+    "phantombuster",
+  ];
+  for (const k of KNOWN) {
+    if (s.includes(k)) return k;
+  }
+  if (s.includes("people data") || s === "pdl") return "pdl";
+  if (s.includes("google") || s.includes("sheet")) return "google_sheets";
+  return s.replace(/\s+/g, "_");
+}
+
 router.get("/", async (req: Request, res: Response) => {
   const workspaceId = String(req.query.workspaceId || "");
 
@@ -52,7 +71,7 @@ router.get("/", async (req: Request, res: Response) => {
       stageMap[bucket].count += 1;
     }
 
-    // 2) Prospecting Imports (Fixed: leadSource -> source)
+    // 2) Prospecting Imports by Source
     const importsBySource = await prisma.lead.groupBy({
       by: ["source"],
       where: { workspaceId },
@@ -67,6 +86,17 @@ router.get("/", async (req: Request, res: Response) => {
         imports: row._count._all,
       }));
 
+    // All-time lead counts per tool (used to mark a tool "active" even when today count is 0)
+    const toolCountsTotal: Record<string, number> = {};
+    for (const row of importsBySource) {
+      if (row.source) {
+        const src = normalizeSource(row.source);
+        if (src !== "unknown") {
+          toolCountsTotal[src] = (toolCountsTotal[src] || 0) + row._count._all;
+        }
+      }
+    }
+
     // 3) Recent Journeys
     const recentLeads = await prisma.lead.findMany({
       where: { workspaceId },
@@ -78,16 +108,46 @@ router.get("/", async (req: Request, res: Response) => {
     const recentJourneys = recentLeads.map((lead) => ({
       id: lead.id,
       status: lead.status,
-      contactName: lead.contact ? `${lead.contact.firstName} ${lead.contact.lastName}` : (lead.fullName || "Unknown"),
+      contactName:
+        lead.contact
+          ? `${lead.contact.firstName} ${lead.contact.lastName}`
+          : lead.fullName || "Unknown",
       createdAt: lead.createdAt.toISOString(),
     }));
+
+    // 4) Tool activity counts for today (used by DashboardPage tool health cards)
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const todayActivities = await prisma.activity.findMany({
+      where: { workspaceId, createdAt: { gte: today } },
+      include: { lead: { select: { source: true } } },
+    });
+
+    const toolCountsToday: Record<string, number> = {};
+    for (const a of todayActivities) {
+      const src = normalizeSource((a.lead as any)?.source ?? null);
+      if (src !== "unknown") {
+        toolCountsToday[src] = (toolCountsToday[src] || 0) + 1;
+      }
+    }
+
+    // 5) Tools synced today — IntegrationConnection.updatedAt is stamped on every sync run.
+    //    A provider synced today is shown as "active" even if no new contacts were imported.
+    const todayConnections = await prisma.integrationConnection.findMany({
+      where: { workspaceId, status: "connected", updatedAt: { gte: today } },
+      select: { provider: true },
+    });
+    const toolSyncedToday: string[] = todayConnections.map((c) => c.provider.toLowerCase());
 
     res.json({
       stages: Object.values(stageMap),
       prospectingImports,
       recentJourneys,
+      toolCountsToday,
+      toolCountsTotal,
+      toolSyncedToday,
     });
-
   } catch (err) {
     console.error("Error loading dashboard:", err);
     res.status(500).json({ error: "Failed to load dashboard" });

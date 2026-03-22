@@ -10,7 +10,7 @@ export default function AboutPage() {
         <section className="border-b border-slate-900 bg-[radial-gradient(circle_at_top,_rgba(129,140,248,0.25),_transparent_55%)]">
           <div className="mx-auto max-w-4xl px-4 pt-10 pb-12 md:pt-14 md:pb-16">
             <div className="inline-flex items-center gap-2 rounded-full border border-indigo-500/40 bg-slate-950/80 px-3 py-1 mb-4 text-sm text-indigo-200">
-              About Revenuela
+              About iqpipe
             </div>
 
             <h1 className="text-3xl md:text-4xl font-semibold leading-tight mb-4">
@@ -22,7 +22,7 @@ export default function AboutPage() {
             </h1>
 
             <p className="text-base text-slate-300 mb-6">
-              Revenuela was born from a simple frustration: every GTM team we
+              iqpipe was born from a simple frustration: every GTM team we
               worked with had great tools, but no shared view of{" "}
               <span className="font-medium text-slate-100">
                 what actually creates revenue
@@ -37,7 +37,7 @@ export default function AboutPage() {
               <span className="font-medium text-slate-100">
                 one neutral schema
               </span>{" "}
-              that all GTM tools can write to. One Revenuela ID follows each
+              that all GTM tools can write to. One iqpipe ID follows each
               prospect, account and deal from first list import to paid invoice.
             </p>
 

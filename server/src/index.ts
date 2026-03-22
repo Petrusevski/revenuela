@@ -1,5 +1,6 @@
 import app from "./app";
 import dotenv from "dotenv";
+import { startSyncPoller } from "./services/syncPoller";
 
 dotenv.config();
 
@@ -9,6 +10,8 @@ const PORT = process.env.PORT || 4000;
 if (process.env.NODE_ENV !== 'production') {
   app.listen(PORT, () => {
     console.log(`🚀 Server running on http://localhost:${PORT}`);
+    // Start background polling loop (runs every 5 min, fires once immediately)
+    startSyncPoller();
   });
 }
 

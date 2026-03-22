@@ -24,12 +24,12 @@ const steps = [
   {
     id: "identity",
     title: "Identity Resolution",
-    description: "Revenuela mints a unique, immutable ID for this prospect.",
+    description: "iqpipe mints a unique, immutable ID for this prospect.",
     icon: Fingerprint,
     color: "bg-fuchsia-500",
     code: `{
   "email": "ceo@company.com",
-  "revenuela_id": "REV_8821_X", 
+  "iqpipe_id": "IQP_8821_X",
   "status": "new"
 }`
   },

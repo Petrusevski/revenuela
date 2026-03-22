@@ -14,7 +14,7 @@ export default function UseCasesPage() {
             </h1>
             <p className="text-base text-slate-300 mb-6 max-w-3xl">
               If you already use more than two GTM tools (Clay, Apollo, HeyReach,
-              Lemlist, CRM, Stripe…), Revenuela becomes the neutral place where
+              Lemlist, CRM, Stripe…), iqpipe becomes the neutral place where
               you <strong>trust the numbers</strong> – and everyone speaks the
               same language.
             </p>
@@ -42,7 +42,7 @@ export default function UseCasesPage() {
                   into every tool.
                 </p>
                 <ul className="space-y-1 text-slate-400">
-                  <li>• High-signal alerts in Revenuela, not noise</li>
+                  <li>• High-signal alerts in iqpipe, not noise</li>
                   <li>• Weekly AI summary of your GTM performance</li>
                   <li>• Board-ready views you can screenshot in seconds</li>
                 </ul>
@@ -53,7 +53,7 @@ export default function UseCasesPage() {
                   Agencies & consultants
                 </div>
                 <p className="text-slate-300 mb-2">
-                  Run multiple client stacks? Give each a Revenuela workspace
+                  Run multiple client stacks? Give each a iqpipe workspace
                   and shared language.
                 </p>
                 <ul className="space-y-1 text-slate-400">

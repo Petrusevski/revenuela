@@ -1,70 +1,108 @@
-import { NavLink } from "react-router-dom";
-import { 
-  LayoutDashboard, 
-  Users, 
-  Workflow, 
-  BarChart3, 
-  Activity, 
-  Plug, 
-  Settings, 
-  Route
+import { useState, useEffect } from "react";
+import { NavLink, useNavigate } from "react-router-dom";
+import {
+  Zap,
+  Search,
+  Activity,
+  GitMerge,
+  Plug,
+  Settings,
+  Sparkles,
+  FileText,
+  HeartPulse,
+  GitBranch,
+  Fingerprint,
+  Bot,
 } from "lucide-react";
+import { useIntegrations } from "../context/IntegrationsContext";
+import { API_BASE_URL } from "../../config";
+import { SETUP_KEY } from "./SetupWizard";
 
 const navGroups = [
   {
-    title: "Analyze",
+    title: "Observe",
     items: [
-      { label: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
-      { label: "Performance", path: "/performance", icon: BarChart3 },
-      { label: "Journeys", path: "/journeys", icon: Route },
-    ]
+      { label: "Live Feed",         path: "/feed",             icon: Zap      },
+      { label: "Pipeline Funnel",   path: "/funnel",           icon: GitMerge },
+      { label: "Contact Inspector", path: "/inspect",          icon: Search   },
+    ],
   },
   {
-    title: "Execute",
+    title: "Health",
     items: [
-      { label: "Leads", path: "/leads", icon: Users },
-      { label: "Workflows", path: "/workflows", icon: Workflow },
-      { label: "Activity", path: "/activity", icon: Activity },
-    ]
+      { label: "Workflow Health",   path: "/workflow-health",  icon: HeartPulse },
+      { label: "Pipeline Health",   path: "/health",           icon: Activity   },
+      { label: "My Workflow",       path: "/my-workflow",      icon: GitBranch  },
+      { label: "Automation Health", path: "/automation-health", icon: Bot        },
+    ],
   },
   {
-    title: "Configure",
+    title: "Report",
     items: [
-      { label: "Integrations", path: "/integrations", icon: Plug },
-      { label: "Settings", path: "/settings", icon: Settings },
-    ]
-  }
+      { label: "GTM Report",        path: "/gtm-report",       icon: FileText },
+    ],
+  },
+  {
+    title: "Setup",
+    items: [
+      { label: "Integrations",      path: "/integrations",     icon: Plug     },
+      { label: "Settings",          path: "/settings",         icon: Settings },
+    ],
+  },
 ];
 
-export default function Sidebar() {
+interface SidebarProps {
+  onOpenSetup?: () => void;
+}
+
+export default function Sidebar({ onOpenSetup }: SidebarProps) {
+  const { connectedTools } = useIntegrations();
+  const navigate = useNavigate();
+  const [workspaceName, setWorkspaceName] = useState<string | null>(null);
+  const setupComplete = !!localStorage.getItem(SETUP_KEY);
+
+  useEffect(() => {
+    const token = localStorage.getItem("iqpipe_token");
+    if (!token) return;
+    fetch(`${API_BASE_URL}/api/workspaces/primary`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => r.ok ? r.json() : null)
+      .then((d) => { if (d?.name) setWorkspaceName(d.name); })
+      .catch(() => {});
+  }, []);
+
+  const displayName = workspaceName ?? "My Workspace";
+  const initials = displayName
+    .split(/\s+/)
+    .map((w) => w[0])
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
+
+  const toolCount = connectedTools.size;
+
   return (
-    // UPDATED CLASSES:
-    // 1. Removed 'hidden' (so it shows on mobile)
-    // 2. Removed 'sticky', 'top-0', 'h-screen' (AppLayout handles positioning now)
-    // 3. Added 'h-full' to ensure it fills the mobile drawer
-    <aside className="w-full md:w-64 h-full flex flex-col bg-slate-950">
-      
-      {/* BRAND HEADER */}
-      <div className="h-16 flex items-center px-6 border-b border-slate-800/50 bg-slate-900/20 shrink-0">
+    <aside className="w-full md:w-56 h-full flex flex-col bg-slate-950">
+
+      {/* BRAND */}
+      <div className="h-16 flex items-center px-5 border-b border-slate-800/50 shrink-0">
         <div className="flex items-center gap-3">
-          <div className="relative h-8 w-8 rounded-xl bg-gradient-to-br from-indigo-600 to-fuchsia-600 shadow-lg shadow-indigo-500/20 flex items-center justify-center">
-             {/* Abstract Logo Icon */}
-             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-               <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
-             </svg>
+          <div className="h-7 w-7 rounded-lg bg-gradient-to-br from-indigo-500/20 to-purple-500/20 ring-1 ring-indigo-500/40 flex items-center justify-center text-indigo-400">
+            <Fingerprint size={16} />
           </div>
           <div className="flex flex-col">
-            <span className="font-bold text-sm tracking-tight text-white leading-none">Revenuela</span>
-            <span className="text-[10px] font-medium text-indigo-400 tracking-wide mt-0.5">REVENUE OS</span>
+            <span className="font-bold text-sm tracking-tight text-white leading-none">iqpipe</span>
+            <span className="text-[10px] font-medium text-indigo-400 tracking-wide mt-0.5">GTM OBSERVABILITY</span>
           </div>
         </div>
       </div>
 
-      {/* NAVIGATION */}
-      <nav className="flex-1 px-4 py-6 space-y-8 overflow-y-auto no-scrollbar">
+      {/* NAV */}
+      <nav className="flex-1 px-3 py-5 space-y-6 overflow-y-auto no-scrollbar">
         {navGroups.map((group, idx) => (
           <div key={idx}>
-            <h3 className="px-3 text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-2">
+            <h3 className="px-3 text-[10px] font-semibold text-slate-600 uppercase tracking-widest mb-1.5">
               {group.title}
             </h3>
             <div className="space-y-0.5">
@@ -73,23 +111,22 @@ export default function Sidebar() {
                   key={item.path}
                   to={item.path}
                   className={({ isActive }) =>
-                    `group flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200
-                    ${isActive 
-                      ? "bg-indigo-500/10 text-indigo-300 shadow-sm shadow-indigo-900/10 border border-indigo-500/20" 
-                      : "text-slate-400 hover:bg-slate-900 hover:text-slate-200 border border-transparent hover:border-slate-800"
+                    `group flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-150
+                    ${isActive
+                      ? "bg-indigo-500/10 text-white border border-indigo-500/20"
+                      : "text-slate-500 hover:bg-slate-900 hover:text-slate-200 border border-transparent"
                     }`
                   }
                 >
                   {({ isActive }) => (
                     <>
-                      <item.icon 
-                        size={18} 
-                        className={`transition-colors ${isActive ? "text-indigo-400" : "text-slate-500 group-hover:text-slate-300"}`} 
+                      <item.icon
+                        size={15}
+                        className={`shrink-0 transition-colors ${isActive ? "text-indigo-400" : "text-slate-600 group-hover:text-slate-400"}`}
                       />
                       <span>{item.label}</span>
-                      {/* Active Indicator Dot */}
                       {isActive && (
-                        <div className="ml-auto w-1.5 h-1.5 rounded-full bg-indigo-400 shadow-[0_0_8px_rgba(129,140,248,0.8)]" />
+                        <div className="ml-auto w-1.5 h-1.5 rounded-full bg-indigo-400 shadow-[0_0_6px_rgba(129,140,248,0.9)]" />
                       )}
                     </>
                   )}
@@ -100,21 +137,51 @@ export default function Sidebar() {
         ))}
       </nav>
 
-      {/* FOOTER / WORKSPACE CARD */}
-      <div className="p-4 border-t border-slate-800/50 bg-slate-900/30 shrink-0">
-        <div className="flex items-center gap-3 p-2 rounded-lg hover:bg-slate-800/50 transition-colors cursor-pointer group">
-          <div className="h-8 w-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-xs font-bold text-slate-300 group-hover:text-white group-hover:border-slate-600">
-            DS
+      {/* SETUP GUIDE */}
+      <div className="px-3 pb-3 shrink-0">
+        <button
+          onClick={onOpenSetup}
+          data-tour="setup-guide-btn"
+          className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg border transition-all text-xs font-medium group ${
+            setupComplete
+              ? "bg-slate-900/40 border-slate-800 text-slate-500 hover:text-slate-300 hover:border-slate-700"
+              : "bg-indigo-900/20 border-indigo-700/40 text-indigo-400 hover:bg-indigo-900/30 hover:border-indigo-600"
+          }`}
+        >
+          <Sparkles size={13} className={setupComplete ? "text-slate-600 group-hover:text-slate-400" : "text-indigo-400"} />
+          <span className="flex-1 text-left">Setup Guide</span>
+          {!setupComplete && (
+            <span className="px-1.5 py-0.5 rounded-full bg-indigo-500 text-white text-[9px] font-bold leading-none">
+              NEW
+            </span>
+          )}
+        </button>
+      </div>
+
+      {/* WORKSPACE FOOTER */}
+      <div className="p-3 border-t border-slate-800/50 shrink-0">
+        <button
+          onClick={() => navigate("/settings")}
+          className="w-full flex items-center gap-2.5 p-2 rounded-lg hover:bg-slate-800/50 transition-colors group"
+        >
+          <div className="h-7 w-7 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-[11px] font-bold text-slate-400 group-hover:text-white group-hover:border-slate-600 shrink-0">
+            {initials}
           </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-xs font-medium text-slate-200 truncate group-hover:text-white">Demo SaaS</p>
-            <p className="text-[10px] text-emerald-400 flex items-center gap-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              Connected
+          <div className="flex-1 min-w-0 text-left">
+            <p className="text-xs font-medium text-slate-300 truncate group-hover:text-white">{displayName}</p>
+            <p className="text-[10px] mt-0.5">
+              {toolCount > 0 ? (
+                <span className="text-emerald-500 flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse inline-block" />
+                  {toolCount} tool{toolCount !== 1 ? "s" : ""} live
+                </span>
+              ) : (
+                <span className="text-slate-600">No tools connected</span>
+              )}
             </p>
           </div>
-          <Settings size={14} className="text-slate-500 group-hover:text-slate-300 transition-colors" />
-        </div>
+          <Settings size={12} className="text-slate-600 group-hover:text-slate-400 shrink-0" />
+        </button>
       </div>
     </aside>
   );

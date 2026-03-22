@@ -3,7 +3,8 @@ import { prisma } from "../db";
 import jwt from "jsonwebtoken";
 
 const router = Router();
-const JWT_SECRET = process.env.JWT_SECRET || "dev-secret-change-me";
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) throw new Error("JWT_SECRET env variable is not set.");
 
 // 1. Define a custom Request type to fix the TypeScript error
 interface AuthenticatedRequest extends Request {

@@ -13,7 +13,7 @@ export default function DashboardsKpisPage() {
               Dashboards & KPIs
             </h1>
             <p className="text-base text-slate-300 mb-6 max-w-3xl">
-              Revenuela ships with opinionated GTM KPIs out of the box – focused
+              iqpipe ships with opinionated GTM KPIs out of the box – focused
               on <strong>stages</strong>, <strong>tools</strong> and{" "}
               <strong>success rates</strong>, not vanity metrics. See exactly
               where revenue is created or lost.
@@ -27,7 +27,7 @@ export default function DashboardsKpisPage() {
                   <span className="text-sm text-slate-400 ml-1">win rate</span>
                 </div>
                 <p className="text-slate-400 mb-3">
-                  Won vs lost for all Revenuela IDs that reached proposal. See
+                  Won vs lost for all iqpipe IDs that reached proposal. See
                   where exactly your funnel leaks.
                 </p>
                 <ul className="space-y-1 text-slate-300">

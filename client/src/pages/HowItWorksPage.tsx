@@ -198,7 +198,7 @@ export default function HowItWorksPage() {
                 transition={{ delay: 0.2 }}
                 className="text-lg text-slate-400 mb-8 max-w-lg leading-relaxed"
               >
-                Tools speak different languages. Revenuela acts as the universal
+                Tools speak different languages. iqpipe acts as the universal
                 translator, assigning a single{" "}
                 <span className="text-slate-200 font-medium mx-1">
                   Identity ID
@@ -311,7 +311,7 @@ export default function HowItWorksPage() {
                   2. Trace The Identity
                 </h3>
                 <p className="text-sm text-slate-400 text-center leading-relaxed">
-                  Revenuela assigns a unique ID to every prospect. When they
+                  iqpipe assigns a unique ID to every prospect. When they
                   reply or book a meeting, the ID updates the state.
                 </p>
               </motion.div>
@@ -340,7 +340,7 @@ export default function HowItWorksPage() {
             <section className="py-24 bg-slate-950">
               <div className="mx-auto max-w-6xl px-4 mb-12 text-center">
                 <h2 className="text-3xl font-bold mb-4">The Journey of a Record</h2>
-                <p className="text-slate-400">Watch how Revenuela standardizes chaos into a unified thread.</p>
+                <p className="text-slate-400">Watch how iqpipe standardizes chaos into a unified thread.</p>
               </div>
               
               <DataLifecycleVertical />

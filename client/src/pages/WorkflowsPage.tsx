@@ -126,10 +126,10 @@ export default function WorkflowsPage() {
       }));
     }
 
-    // 3) Fallback: simple demo chain Clay -> Revenuela -> HeyReach
+    // 3) Fallback: simple demo chain Clay -> iqpipe -> HeyReach
     return [
       { appId: "clay", displayName: "Clay", role: "trigger" },
-      { appId: "revenuela", displayName: "Revenuela", role: "router" },
+      { appId: "iqpipe", displayName: "iqpipe", role: "router" },
       { appId: "heyreach", displayName: "HeyReach", role: "outreach" },
     ];
   }, [latestWorkflow]);
@@ -144,7 +144,7 @@ export default function WorkflowsPage() {
   const workflowSubtitle =
     latestWorkflow?.description ||
     latestWorkflow?.summary ||
-    "Describe a workflow in the assistant panel and Revenuela will generate it. It will appear here as a simple left-to-right path.";
+    "Describe a workflow in the assistant panel and iqpipe will generate it. It will appear here as a simple left-to-right path.";
 
   return (
     <div className="flex flex-col h-full">
@@ -246,7 +246,7 @@ export default function WorkflowsPage() {
                       No workflow apps detected yet. Try asking the assistant:{" "}
                       <span className="italic">
                         "When Clay finds a new ICP-fit lead, send it to
-                        Revenuela then to HeyReach."
+                        iqpipe then to HeyReach."
                       </span>
                     </div>
                   )}

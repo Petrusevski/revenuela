@@ -1,19 +1,28 @@
 import { ReactNode, useState, useEffect } from "react";
 import { useLocation } from "react-router-dom";
-import { AnimatePresence, motion } from "framer-motion"; // For smooth animations
+import { AnimatePresence, motion } from "framer-motion";
 import { X } from "lucide-react";
 import Sidebar from "../components/Sidebar";
 import Topbar from "../components/Topbar";
-import AssistantPanel from "../components/AssistantPanel";
+import SetupWizard, { SETUP_KEY } from "../components/SetupWizard";
 
 interface AppLayoutProps {
   children: ReactNode;
 }
 
 export default function AppLayout({ children }: AppLayoutProps) {
-  const [assistantOpen, setAssistantOpen] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
-  
+  const [wizardOpen, setWizardOpen] = useState(false);
+
+  // Auto-show setup wizard on first login
+  useEffect(() => {
+    const complete = localStorage.getItem(SETUP_KEY);
+    if (!complete) {
+      const t = setTimeout(() => setWizardOpen(true), 600);
+      return () => clearTimeout(t);
+    }
+  }, []);
+
   // Automatically close sidebar when route changes (improves mobile UX)
   const location = useLocation();
   useEffect(() => {
@@ -22,11 +31,13 @@ export default function AppLayout({ children }: AppLayoutProps) {
 
   return (
     <div className="min-h-screen flex bg-slate-950 text-slate-100 font-sans selection:bg-indigo-500/30">
-      
-      {/* 1. Desktop Sidebar - Controlled by CSS only */}
-      {/* We wrap it here to handle the hiding. Ensure Sidebar.tsx itself is NOT 'hidden' */}
+
+      {/* Setup Wizard */}
+      {wizardOpen && <SetupWizard onClose={() => setWizardOpen(false)} />}
+
+      {/* 1. Desktop Sidebar */}
       <div className="hidden md:block h-screen sticky top-0 overflow-y-auto border-r border-slate-800 bg-slate-950 shadow-xl z-30">
-        <Sidebar />
+        <Sidebar onOpenSetup={() => setWizardOpen(true)} />
       </div>
 
       {/* 2. Mobile Sidebar - Controlled by Framer Motion */}
@@ -62,8 +73,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
               
               {/* Sidebar Content Container */}
               <div className="flex-1 overflow-y-auto">
-                 {/* The Sidebar component must have h-full or similar to fill this space */}
-                 <Sidebar />
+                <Sidebar onOpenSetup={() => { setMobileSidebarOpen(false); setWizardOpen(true); }} />
               </div>
             </motion.div>
           </>
@@ -72,8 +82,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0">
-        <Topbar 
-          onAskAssistant={() => setAssistantOpen(true)} 
+        <Topbar
           onMenuClick={() => setMobileSidebarOpen(true)}
         />
         <main className="flex-1 px-4 md:px-8 py-6 relative">
@@ -83,10 +92,6 @@ export default function AppLayout({ children }: AppLayoutProps) {
         </main>
       </div>
 
-      <AssistantPanel
-        isOpen={assistantOpen}
-        onClose={() => setAssistantOpen(false)}
-      />
     </div>
   );
 }

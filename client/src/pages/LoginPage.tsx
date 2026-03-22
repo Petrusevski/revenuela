@@ -1,8 +1,9 @@
 import { FormEvent, useState } from "react";
 import { ArrowLeft, Lock, Mail } from "lucide-react";
 import { motion } from "framer-motion";
+import { API_BASE_URL } from "../../config";
 
-const API_BASE = (import.meta as any).env?.VITE_API_URL || "http://localhost:4000";
+const API_BASE = API_BASE_URL;
 
 interface LoginPageProps {
   onLoginSuccess?: (payload: { token: string; user: { id: string; email: string; fullName: string } }) => void;
@@ -38,8 +39,8 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
         return;
       }
 
-      localStorage.setItem("revenuela_token", data.token);
-      localStorage.setItem("revenuela_user", JSON.stringify(data.user));
+      localStorage.setItem("iqpipe_token", data.token);
+      localStorage.setItem("iqpipe_user", JSON.stringify(data.user));
 
       if (onLoginSuccess) {
         onLoginSuccess(data);
@@ -77,7 +78,7 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
               Stop guessing where your revenue comes from.
             </h1>
             <p className="text-slate-400 text-lg leading-relaxed">
-              "Revenuela finally gave us a single source of truth. We cut our tool spend by 30% in the first month."
+              "iqpipe finally gave us a single source of truth. We cut our tool spend by 30% in the first month."
             </p>
           </motion.div>
 
@@ -108,7 +109,7 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
         <div className="w-full max-w-sm">
           <div className="mb-8 text-center">
             <div className="inline-flex items-center justify-center h-12 w-12 rounded-xl bg-gradient-to-br from-indigo-600 to-violet-600 text-white text-xl font-bold shadow-lg shadow-indigo-500/20 mb-4">
-              R
+              iq
             </div>
             <h2 className="text-2xl font-bold text-white tracking-tight">Welcome back</h2>
             <p className="text-sm text-slate-400 mt-2">
@@ -183,7 +184,7 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
         </div>
         
         <div className="absolute bottom-6 text-[10px] text-slate-600">
-          © 2025 Revenuela Inc. Privacy & Terms
+          © 2025 iqpipe Inc. Privacy & Terms
         </div>
       </div>
     </div>

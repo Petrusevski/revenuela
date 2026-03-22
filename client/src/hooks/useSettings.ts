@@ -12,10 +12,12 @@ export type WorkspaceSettings = {
   timezone: string;
   industry: string;
   plan: string;
+  trialEndsAt: string | null;
+  createdAt: string;
   seatsTotal: number;
   seatsUsed: number;
   billingEmail: string | null;
-  revenuelaIdPrefix: string;
+  iqpipeIdPrefix: string;
   publicApiKey: string;
   webhookEndpoint: string;
   dataAnonymization: boolean;
@@ -29,6 +31,8 @@ export type MembershipSettings = {
   darkMode: boolean;
   weeklyDigest: boolean;
   performanceAlerts: boolean;
+  userFullName: string;
+  userEmail: string;
 };
 
 export type SettingsResponse = {
@@ -51,7 +55,7 @@ export function useSettings() {
         setLoading(true);
         setError(null);
 
-        const token = localStorage.getItem("revenuela_token");
+        const token = localStorage.getItem("iqpipe_token");
         const headers: HeadersInit = {};
 
         if (token) {
@@ -101,7 +105,7 @@ export function useSettings() {
       setSaving(true);
       setError(null);
 
-      const token = localStorage.getItem("revenuela_token");
+      const token = localStorage.getItem("iqpipe_token");
       const headers: HeadersInit = {
         "Content-Type": "application/json",
       };

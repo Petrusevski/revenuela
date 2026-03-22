@@ -3,9 +3,8 @@ generator client {
 }
 
 datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
+  provider = "sqlite"
+  url      = "file:./dev.db"
 }
 
 model User {
@@ -32,7 +31,8 @@ model Workspace {
   timezone            String  @default("Europe/Prague")
   industry            String  @default("SaaS") // for benchmarks
 
-  plan                String  @default("pro") // "free" | "pro" | "enterprise"
+  plan                String  @default("trial") // "trial" | "free" | "pro" | "enterprise"
+  trialEndsAt         DateTime?
   seatsTotal          Int     @default(5)
   seatsUsed           Int     @default(1)
   billingEmail        String?
@@ -58,6 +58,8 @@ model Workspace {
   integrations        IntegrationConnection[]
   sequenceEnrollments SequenceEnrollment[]
   notifications       Notification[]
+  experiments         Experiment[]
+  iqLeads             IqLead[]
 }
 
 model Notification {
@@ -325,4 +327,214 @@ model IntegrationConnection {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model Experiment {
+  id             String    @id @default(cuid())
+  workspace      Workspace @relation(fields: [workspaceId], references: [id])
+  workspaceId    String
+  name           String
+  status         String    @default("draft") // "draft" | "active" | "paused" | "completed"
+  startDate      String?
+  endDate        String?
+  audienceSize   Int       @default(0)
+  splitPct       Int       @default(50)
+  kpis           String?   // JSON: string[]
+  stackA         String?   // JSON: StackConfig
+  stackB         String?   // JSON: StackConfig
+  metricsA       String?   // JSON: ExperimentMetrics
+  metricsB       String?   // JSON: ExperimentMetrics
+  winner         String?   // "A" | "B" | "tie"
+  leadAssignment String?   // JSON: { A: string[], B: string[] }
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ── Privacy-first lead identity ─────────────────────────────────────────────
+
+model IqLead {
+  id          String    @id  // "iq_" + 12 random chars, minted on first sight
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id])
+
+  // Hashed identifiers for cross-tool lookup — SHA-256 HMAC, NOT reversible
+  emailHash    String?
+  linkedinHash String?
+  phoneHash    String?
+
+  // AES-256 encrypted PII — reversible only by workspace owner
+  emailEnc    String?
+  linkedinEnc String?
+  phoneEnc    String?
+
+  // Non-PII metadata stored in clear
+  displayName String?   // "J. Smith" — first name + last initial only
+  company     String?
+  title       String?
+
+  firstSeenAt DateTime  @default(now())
+  lastSeenAt  DateTime  @updatedAt
+
+  touchpoints Touchpoint[]
+  outcomes    Outcome[]
+
+  @@index([workspaceId, emailHash])
+  @@index([workspaceId, linkedinHash])
+  @@index([workspaceId, phoneHash])
+}
+
+model Touchpoint {
+  id          String   @id @default(cuid())
+  workspaceId String
+  iqLeadId    String
+  iqLead      IqLead   @relation(fields: [iqLeadId], references: [id])
+
+  tool        String   // "heyreach", "instantly", "hubspot", etc.
+  channel     String   // "linkedin" | "email" | "phone" | "sms" | "whatsapp" | "crm" | "enrichment" | "billing"
+  eventType   String   // iqpipe standard event type
+
+  experimentId String?  // links to Experiment.id if part of A/B test
+  stackVariant String?  // "A" or "B"
+
+  meta        String?  // JSON blob: campaign, sequence, deal name, etc.
+  workflowId     String?  // n8n workflowId if this event came via n8n
+  stepId         String?  // n8n stepId if this event came via n8n
+  sourceType     String   @default("webhook")  // "direct_api" | "webhook" | "n8n_workflow"
+  sourcePriority Int      @default(2)           // 1=direct_api, 2=webhook, 3=n8n_workflow
+  recordedAt  DateTime @default(now())
+
+  @@index([workspaceId, iqLeadId])
+  @@index([workspaceId, tool])
+  @@index([workspaceId, eventType])
+  @@index([workspaceId, recordedAt])
+}
+
+// ── n8n integration layer ────────────────────────────────────────────────────
+
+// Layer 1 dedup: every event arriving via POST /api/webhooks/n8n must carry
+// a unique idempotency_key. If the same key is seen again within 30 days the
+// event is silently discarded before any DB writes happen.
+model IdempotencyRecord {
+  id          String   @id @default(cuid())
+  workspaceId String
+  key         String   // format: "{source_tool}-{external_id}-{event_type}"
+  createdAt   DateTime @default(now())
+
+  @@unique([workspaceId, key])
+  @@index([workspaceId, createdAt])
+}
+
+// Dead-letter queue: validation failures (400) and internal errors (500) that
+// exhaust retries land here. Users can inspect and re-trigger from Settings.
+model WebhookError {
+  id          String    @id @default(cuid())
+  workspaceId String
+  source      String    // "n8n", "make", or the tool slug
+  payload     String    // raw JSON body (capped at 10 000 chars)
+  errorCode   String    // "SCHEMA_INVALID" | "CONTACT_MISSING" | "INTERNAL_ERROR" | "AUTH_FAILED"
+  errorDetail String    // human-readable description
+  retryCount  Int       @default(0)
+  resolvedAt  DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([workspaceId, createdAt])
+  @@index([workspaceId, resolvedAt])
+}
+
+// Async ingestion queue for n8n events. Events are written here synchronously
+// (202 Accepted) and processed in the background by n8nQueueProcessor.ts.
+// Supports workflow- and step-level attribution for performance tracking.
+model N8nQueuedEvent {
+  id             String    @id @default(cuid())
+  workspaceId    String
+  workflowId     String    // n8n workflow ID or user-defined name
+  stepId         String?   // n8n node/step name that emitted the event
+  sourceApp      String    // iqpipe tool slug (e.g. "salesflare", "intercom")
+  externalId     String    // tool-native contact or record ID
+  eventType      String    // iqpipe standard event type
+  contact        String    // JSON: { email, linkedin_url, phone, first_name, last_name, company, title }
+  meta           String?   // JSON: arbitrary key-value pairs
+  idempotencyKey String    // sha256(sourceApp:externalId:eventType:timeBucket) — 5-min window
+  sourceType     String   @default("n8n_workflow") // "direct_api" | "webhook" | "n8n_workflow"
+  sourcePriority Int      @default(3)
+  eventClass     String?  // "outcome" | "process" — set at ingestion time
+
+  // Processing state machine
+  status         String    @default("pending") // pending | processing | done | failed
+  attempts       Int       @default(0)
+  lastError      String?
+  nextRetryAt    DateTime?
+
+  createdAt      DateTime  @default(now())
+  processedAt    DateTime?
+
+  @@unique([workspaceId, idempotencyKey])
+  @@index([workspaceId, status, nextRetryAt])
+  @@index([workspaceId, workflowId])
+  @@index([workspaceId, sourceApp])
+  @@index([workspaceId, createdAt])
+}
+
+model Outcome {
+  id          String   @id @default(cuid())
+  workspaceId String
+  iqLeadId    String
+  iqLead      IqLead   @relation(fields: [iqLeadId], references: [id])
+
+  type        String   // "reply_received" | "meeting_booked" | "deal_created" | "deal_won" | "deal_lost"
+  value       Float?   // deal amount
+  currency    String?
+
+  // Attribution fields
+  reportingTool      String   // tool that fired this outcome event
+  firstTouchTool     String?  // first tool to meaningfully contact this lead
+  lastTouchTool      String?  // last tool to interact before this outcome
+  attributedTools    String?  // JSON: string[] — all tools with touchpoints before outcome
+  attributedChannels String?  // JSON: string[] — all channels used
+
+  experimentId String?  // if part of A/B test
+  stackVariant String?  // "A" or "B" — which stack gets attribution credit
+  workflowId     String?  // n8n workflow that was last-touch before outcome
+  stepId         String?  // n8n step within that workflow
+
+  meta        String?  // JSON
+  recordedAt  DateTime @default(now())
+
+  @@index([workspaceId, type])
+  @@index([workspaceId, iqLeadId])
+  @@index([workspaceId, recordedAt])
+}
+
+model N8nConnection {
+  id            String    @id @default(cuid())
+  workspaceId   String    @unique
+  baseUrl       String
+  apiKeyEnc     String
+  authType      String    @default("apikey")
+  status        String    @default("connected")
+  lastSyncAt    DateTime?
+  lastError     String?
+  workflowCount Int       @default(0)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model N8nWorkflowMeta {
+  id            String    @id @default(cuid())
+  workspaceId   String
+  n8nId         String
+  name          String
+  active        Boolean   @default(false)
+  tags          String    @default("[]")
+  appsUsed      String    @default("[]")
+  nodeTypes     String    @default("[]")
+  nodeCount     Int       @default(0)
+  triggerType   String    @default("manual")
+  description   String?
+  lastUpdatedAt DateTime?
+  syncedAt      DateTime  @default(now())
+
+  @@unique([workspaceId, n8nId])
+  @@index([workspaceId])
 }

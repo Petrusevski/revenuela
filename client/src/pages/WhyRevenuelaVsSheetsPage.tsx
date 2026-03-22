@@ -1,7 +1,7 @@
 import Header from "../components/Header";
 import Footer from "../components/Footer";
 
-export default function WhyRevenuelaVsSheetsPage() {
+export default function WhyiqpipeVsSheetsPage() {
   return (
     <div className="min-h-screen bg-slate-950 text-slate-50 flex flex-col">
       <Header />
@@ -10,12 +10,12 @@ export default function WhyRevenuelaVsSheetsPage() {
         <section className="bg-slate-950 border-b border-slate-900">
           <div className="mx-auto max-w-6xl px-4 pt-10 pb-12 md:pt-14 md:pb-16">
             <h1 className="text-3xl md:text-4xl font-semibold leading-tight mb-3">
-              Why Revenuela vs spreadsheets
+              Why iqpipe vs spreadsheets
             </h1>
             <p className="text-base text-slate-300 mb-6 max-w-3xl">
               You can hack together a funnel view with exports, VLOOKUPs and
               pivot tables. But it breaks every time your stack changes.
-              Revenuela keeps a stable ID and schema while your tools evolve.
+              iqpipe keeps a stable ID and schema while your tools evolve.
             </p>
 
             <div className="grid md:grid-cols-2 gap-4 text-sm">
@@ -33,7 +33,7 @@ export default function WhyRevenuelaVsSheetsPage() {
 
               <div className="rounded-2xl border border-emerald-500/40 bg-emerald-500/5 p-4">
                 <div className="text-emerald-300 font-semibold mb-2">
-                  With Revenuela
+                  With iqpipe
                 </div>
                 <ul className="space-y-1 text-slate-200">
                   <li>• Single schema across all GTM tools</li>

@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { 
-  ArrowLeft, Mail, Building, Globe, Map, 
-  Activity, ShieldCheck, Zap, Clock
+import {
+  ArrowLeft, Mail, Building, Globe, Zap, Clock
 } from "lucide-react";
 import { API_BASE_URL } from "../../config";
 
@@ -15,7 +14,7 @@ export default function LeadProfilePage() {
   useEffect(() => {
     const fetchLead = async () => {
       try {
-        const token = localStorage.getItem("revenuela_token");
+        const token = localStorage.getItem("iqpipe_token");
         const res = await fetch(`${API_BASE_URL}/api/leads/${id}`, {
           headers: { Authorization: `Bearer ${token}` }
         });
@@ -35,8 +34,6 @@ export default function LeadProfilePage() {
   if (loading) return <div className="p-10 text-slate-500">Loading profile...</div>;
   if (!lead) return <div className="p-10 text-slate-500">Lead not found.</div>;
 
-  const journeySteps = lead.journeySteps ? JSON.parse(lead.journeySteps) : [];
-
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 pb-20">
       {/* TOP BAR */}
@@ -48,11 +45,6 @@ export default function LeadProfilePage() {
           <div>
             <h1 className="text-lg font-bold text-white flex items-center gap-2">
               {lead.fullName || lead.email}
-              {journeySteps.length > 0 && (
-                <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-[10px] text-emerald-400 font-medium uppercase tracking-wide">
-                  Active
-                </span>
-              )}
             </h1>
             <div className="text-xs text-slate-400 flex items-center gap-2">
               <span>{lead.id}</span>
@@ -83,27 +75,15 @@ export default function LeadProfilePage() {
               <Zap size={14} className="text-amber-400" /> Revenue Intelligence
             </h3>
             
-            <div className="grid grid-cols-2 gap-4">
-              <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 flex flex-col items-center justify-center text-center">
-                <div className="text-3xl font-bold text-white mb-1">{lead.intelligence?.engagementScore || 0}</div>
-                <div className="text-[10px] font-medium text-slate-400 uppercase tracking-wide">Engagement Score</div>
-              </div>
-              <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 flex flex-col items-center justify-center text-center">
-                <div className="text-3xl font-bold text-emerald-400 mb-1">A</div>
-                <div className="text-[10px] font-medium text-slate-400 uppercase tracking-wide">ICP Fit Grade</div>
-              </div>
+            <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 flex flex-col items-center justify-center text-center">
+              <div className="text-3xl font-bold text-white mb-1">{lead.intelligence?.engagementScore || 0}</div>
+              <div className="text-[10px] font-medium text-slate-400 uppercase tracking-wide">Engagement Score</div>
             </div>
 
-            <div className="mt-6 space-y-3">
+            <div className="mt-4 space-y-3">
               <div className="flex justify-between text-sm">
                 <span className="text-slate-400">Open Rate</span>
                 <span className="text-slate-200 font-mono">{lead.intelligence?.emailOpenRate || "0%"}</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-slate-400">Enrichment</span>
-                <span className="text-emerald-400 font-medium flex items-center gap-1">
-                  <ShieldCheck size={12} /> Complete
-                </span>
               </div>
             </div>
           </div>
@@ -140,46 +120,10 @@ export default function LeadProfilePage() {
 
         </div>
 
-        {/* RIGHT COLUMN: ACTIVITY & JOURNEY */}
+        {/* RIGHT COLUMN: ACTIVITY */}
         <div className="col-span-12 lg:col-span-8 space-y-6">
-          
-          {/* 1. Journey Visualization */}
-          <div className="rounded-2xl border border-slate-800 bg-slate-900/50 p-6">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
-                <Map size={14} /> Active Journey
-              </h3>
-              <span className="text-xs text-slate-400">Started {new Date(lead.updatedAt).toLocaleDateString()}</span>
-            </div>
 
-            {journeySteps.length > 0 ? (
-              <div className="flex items-center gap-2 overflow-x-auto pb-2 no-scrollbar">
-                {journeySteps.map((step: string, i: number) => (
-                  <div key={i} className="flex items-center shrink-0">
-                    <div className="flex flex-col items-center gap-2">
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center border-2 font-bold text-sm
-                        ${i === 0 ? 'bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-500/20' : 'bg-slate-900 border-slate-700 text-slate-500'}
-                      `}>
-                        {i + 1}
-                      </div>
-                      <span className={`text-xs font-medium ${i===0 ? 'text-indigo-300' : 'text-slate-500'}`}>{step}</span>
-                    </div>
-                    {i < journeySteps.length - 1 && <div className="w-12 h-0.5 bg-slate-800 mb-6 mx-2" />}
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="p-8 border-2 border-dashed border-slate-800 rounded-xl flex flex-col items-center justify-center text-center">
-                <Activity className="text-slate-600 mb-2" />
-                <p className="text-slate-400 text-sm">No active journey.</p>
-                <button className="mt-3 text-xs text-indigo-400 hover:text-indigo-300 font-medium">
-                  + Start a journey
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* 2. Activity Feed (Timeline) */}
+          {/* Activity Feed (Timeline) */}
           <div className="rounded-2xl border border-slate-800 bg-slate-900/50 p-6 min-h-[400px]">
             <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-6 flex items-center gap-2">
               <Clock size={14} /> Timeline & Signals

@@ -3,56 +3,71 @@ import { prisma } from "../db";
 
 const router = Router();
 
-// These lists are now used ONLY for categorization, not for populating the view by default.
-const PROSPECTING_PROVIDERS_LIST = ["clay", "apollo", "zoominfo"];
-const OUTBOUND_PROVIDERS_LIST = ["heyreach", "lemlist", "instantly"];
-
-const PROVIDER_LABELS: Record<string, string> = {
+const TOOL_DISPLAY_MAP: Record<string, string> = {
   clay: "Clay",
   apollo: "Apollo",
   zoominfo: "ZoomInfo",
+  pdl: "People Data Labs",
   heyreach: "HeyReach",
   lemlist: "Lemlist",
   instantly: "Instantly",
+  smartlead: "Smartlead",
+  hubspot: "HubSpot CRM",
+  pipedrive: "Pipedrive",
+  closecrm: "Close CRM",
+  stripe: "Stripe",
+  paddle: "Paddle",
+  chargebee: "Chargebee",
+  clearbit: "Clearbit",
+  lusha: "Lusha",
+  dropcontact: "Dropcontact",
 };
 
-const PROVIDER_ROLES: Record<string, string> = {
+const TOOL_CATEGORY_MAP: Record<string, string> = {
+  clay: "Prospecting", apollo: "Prospecting", zoominfo: "Prospecting", pdl: "Prospecting",
+  clearbit: "Enrichment", lusha: "Enrichment", dropcontact: "Enrichment",
+  heyreach: "Outbound", lemlist: "Outbound", instantly: "Outbound", smartlead: "Outbound",
+  hubspot: "CRM", pipedrive: "CRM", closecrm: "CRM",
+  stripe: "Billing", paddle: "Billing", chargebee: "Billing",
+};
+
+const TOOL_ROLE_MAP: Record<string, string> = {
   clay: "Prospecting & enrichment",
   apollo: "Lead extraction",
   zoominfo: "Enterprise lists",
+  pdl: "People data enrichment",
   heyreach: "LinkedIn sequences",
   lemlist: "Cold email",
   instantly: "Cold email engine",
+  smartlead: "Cold email at scale",
+  hubspot: "CRM & pipeline",
+  pipedrive: "Sales pipeline",
+  closecrm: "Inside sales CRM",
+  stripe: "Payments & revenue",
+  paddle: "Subscription billing",
+  chargebee: "Subscription management",
+  clearbit: "Data enrichment",
+  lusha: "Contact intelligence",
+  dropcontact: "Email enrichment",
 };
 
-type ToolPerfApi = {
-  id: string;
-  name: string;
-  category: "Prospecting" | "Outbound";
-  role: string;
-  leadsInfluenced: number;
-  customersWon: number;
-  mrr: string;
-  replyRate?: string;
-  meetingRate?: string;
-};
-
-type TopWorkflowApi = {
-  id: string;
-  label: string;
-  mrr: string;
-  customers: number;
-  summary: string;
-};
+/** Normalise a raw lead.source string to a lowercase tool ID */
+function normalizeSource(raw: string | null): string {
+  if (!raw) return "unknown";
+  const s = raw.toLowerCase().trim();
+  for (const key of Object.keys(TOOL_DISPLAY_MAP)) {
+    if (s.includes(key)) return key;
+  }
+  if (s.includes("people data") || s === "pdl") return "pdl";
+  return s.replace(/\s+/g, "_");
+}
 
 function formatCurrency(amount: number, currency: string | null | undefined) {
   const cur = currency || "EUR";
-  const symbol = cur === "EUR" ? "€" : cur + " ";
+  const symbol = cur === "EUR" ? "€" : cur === "USD" ? "$" : cur + " ";
   return (
     symbol +
-    Math.round(amount).toLocaleString("de-DE", {
-      maximumFractionDigits: 0,
-    })
+    Math.round(amount).toLocaleString("de-DE", { maximumFractionDigits: 0 })
   );
 }
 
@@ -64,127 +79,172 @@ router.get("/", async (req: Request, res: Response) => {
   }
 
   try {
-    // 1) Get ONLY connected integrations for this workspace
+    // 1) Connected integrations
     const integrations = await prisma.integrationConnection.findMany({
-      where: { workspaceId },
+      where: { workspaceId, status: "connected" },
       select: { provider: true },
     });
-
     const connectedProviders = integrations
-      .map((i) => (i.provider || "").toLowerCase())
-      .filter(Boolean);
+      .map((i) => normalizeSource(i.provider))
+      .filter((p) => p !== "unknown");
 
-    // 2) Basic workspace metrics
-    const [leadCount, wonDeals] = await Promise.all([
-      prisma.lead.count({ where: { workspaceId } }),
-      prisma.deal.findMany({
-        where: {
-          workspaceId,
-          stage: { equals: "won" },
-        },
-      }),
-    ]);
+    // 2) All leads for this workspace
+    const allLeads = await prisma.lead.findMany({
+      where: { workspaceId },
+      select: { source: true, leadScore: true, fitScore: true, status: true },
+    });
 
-    const totalWonMrr = wonDeals.reduce((sum, d) => sum + (d.amount || 0), 0);
+    // 3) Activity counts: all-time, today, this week — grouped by lead source
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const weekAgo = new Date(today);
+    weekAgo.setDate(weekAgo.getDate() - 7);
+    const prevWeekStart = new Date(weekAgo);
+    prevWeekStart.setDate(prevWeekStart.getDate() - 7);
+
+    const allActivities = await prisma.activity.findMany({
+      where: { workspaceId },
+      select: { createdAt: true, lead: { select: { source: true } } },
+    });
+
+    // Group counts by source
+    const totalBySource: Record<string, number> = {};
+    const todayBySource: Record<string, number> = {};
+    const weekBySource: Record<string, number> = {};
+    const prevWeekBySource: Record<string, number> = {};
+
+    for (const a of allActivities) {
+      const src = normalizeSource((a.lead as any)?.source ?? null);
+      totalBySource[src] = (totalBySource[src] || 0) + 1;
+      if (a.createdAt >= today) todayBySource[src] = (todayBySource[src] || 0) + 1;
+      if (a.createdAt >= weekAgo) weekBySource[src] = (weekBySource[src] || 0) + 1;
+      if (a.createdAt >= prevWeekStart && a.createdAt < weekAgo)
+        prevWeekBySource[src] = (prevWeekBySource[src] || 0) + 1;
+    }
+
+    // 4) Leads grouped by source
+    const leadsBySource: Record<string, typeof allLeads> = {};
+    for (const lead of allLeads) {
+      const src = normalizeSource(lead.source);
+      if (!leadsBySource[src]) leadsBySource[src] = [];
+      leadsBySource[src].push(lead);
+    }
+
+    // 5) Won deals for MRR
+    const wonDeals = await prisma.deal.findMany({
+      where: { workspaceId, stage: "won" },
+      select: { amount: true, currency: true },
+    });
+    const totalWonMrr = wonDeals.reduce((s, d) => s + (d.amount || 0), 0);
+    const defaultCurrency = wonDeals[0]?.currency || "EUR";
     const totalCustomers = wonDeals.length;
-    const defaultCurrency = (wonDeals[0] && wonDeals[0].currency) || "EUR";
 
-    // Approx leads influenced (Logic can be updated to count leads by source later)
-    const approxLeadsInfluenced = Math.round(leadCount * 0.6);
+    // 6) Build tool list for connected providers only
+    const tools = connectedProviders
+      .filter((p) => TOOL_DISPLAY_MAP[p])
+      .map((provider) => {
+        const leadsForTool = leadsBySource[provider] || [];
+        const eventsTotal = totalBySource[provider] || 0;
+        const eventsToday = todayBySource[provider] || 0;
+        const eventsThisWeek = weekBySource[provider] || 0;
+        const prevWeekCount = prevWeekBySource[provider] || 0;
 
-    // 3) Build tool list based STRICTLY on connected providers
-    const tools: ToolPerfApi[] = [];
+        const scores = leadsForTool
+          .map((l) => l.leadScore ?? l.fitScore ?? 0)
+          .filter((s) => s > 0);
+        const avgScore =
+          scores.length > 0
+            ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length)
+            : 0;
+        const hotSignals = leadsForTool.filter(
+          (l) => (l.leadScore ?? l.fitScore ?? 0) >= 70
+        ).length;
 
-    // Filter the known categories against what is actually in the DB
-    const activeProspecting = PROSPECTING_PROVIDERS_LIST.filter((p) =>
-      connectedProviders.includes(p)
+        // Trend vs previous week
+        let trend: "up" | "down" | "flat" = "flat";
+        let trendPct = 0;
+        if (prevWeekCount > 0) {
+          const delta = eventsThisWeek - prevWeekCount;
+          trendPct = Math.abs(Math.round((delta / prevWeekCount) * 100));
+          trend = delta > 0 ? "up" : delta < 0 ? "down" : "flat";
+        } else if (eventsThisWeek > 0) {
+          trend = "up";
+          trendPct = 100;
+        }
+
+        const status: "active" | "idle" | "error" =
+          eventsToday > 0 ? "active" : eventsThisWeek > 0 ? "idle" : "idle";
+
+        // Approximate MRR per tool (distribute evenly across active tools)
+        const mrrPerTool =
+          connectedProviders.length > 0
+            ? totalWonMrr / connectedProviders.length
+            : 0;
+
+        return {
+          id: provider,
+          name: TOOL_DISPLAY_MAP[provider] || provider,
+          displayName: TOOL_DISPLAY_MAP[provider] || provider,
+          category: TOOL_CATEGORY_MAP[provider] || "Prospecting",
+          role: TOOL_ROLE_MAP[provider] || "GTM tool",
+          status,
+          eventsTotal,
+          eventsToday,
+          eventsThisWeek,
+          avgScore,
+          hotSignals,
+          trend,
+          trendPct,
+          leadsInfluenced: leadsForTool.length,
+          customersWon: Math.round(
+            totalCustomers > 0 && connectedProviders.length > 0
+              ? totalCustomers / connectedProviders.length
+              : 0
+          ),
+          mrr: formatCurrency(mrrPerTool, defaultCurrency),
+          // Outreach-specific rates (derived from activity pattern — placeholder until webhooks)
+          replyRate: 0,
+          openRate: 0,
+          meetingRate: 0,
+        };
+      });
+
+    // Summary
+    const prospectingCount = tools.filter((t) =>
+      ["Prospecting"].includes(t.category)
+    ).length;
+    const outboundCount = tools.filter((t) =>
+      ["Outbound"].includes(t.category)
+    ).length;
+    const totalLeadsInfluenced = tools.reduce(
+      (s, t) => s + t.leadsInfluenced,
+      0
     );
-    const activeOutbound = OUTBOUND_PROVIDERS_LIST.filter((p) =>
-      connectedProviders.includes(p)
-    );
 
-    const prospectingCount = activeProspecting.length;
-    const outboundCount = activeOutbound.length;
-    const totalActiveTools = prospectingCount + outboundCount;
+    // Top workflows
+    const topWorkflows =
+      totalWonMrr > 0
+        ? [
+            {
+              id: "wf_combined_revenue",
+              label: "Prospecting → Outbound → Closed Won",
+              mrr: formatCurrency(totalWonMrr, defaultCurrency),
+              customers: totalCustomers,
+              summary: "Aggregated revenue from all currently active tools.",
+            },
+          ]
+        : [];
 
-    // Distribute metrics only if tools exist
-    const halfLeads = Math.round(approxLeadsInfluenced / 2);
-    
-    const prospectingLeadsPerTool = prospectingCount > 0 
-      ? Math.max(0, Math.floor(halfLeads / prospectingCount)) 
-      : 0;
-      
-    const outboundLeadsPerTool = outboundCount > 0 
-      ? Math.max(0, Math.floor(halfLeads / outboundCount)) 
-      : 0;
-
-    const prospectingMrrPerTool = prospectingCount > 0 
-      ? Math.max(0, totalWonMrr / 2 / prospectingCount) 
-      : 0;
-      
-    const outboundMrrPerTool = outboundCount > 0 
-      ? Math.max(0, totalWonMrr / 2 / outboundCount) 
-      : 0;
-      
-    const customersPerTool = totalActiveTools > 0 
-      ? Math.max(0, Math.floor(totalCustomers / totalActiveTools)) 
-      : 0;
-
-    // Build Prospecting Response
-    for (const provider of activeProspecting) {
-      tools.push({
-        id: provider,
-        name: PROVIDER_LABELS[provider] || provider,
-        category: "Prospecting",
-        role: PROVIDER_ROLES[provider] || "Prospecting",
-        leadsInfluenced: prospectingLeadsPerTool,
-        customersWon: customersPerTool,
-        mrr: formatCurrency(prospectingMrrPerTool, defaultCurrency),
-        meetingRate: undefined,
-      });
-    }
-
-    // Build Outbound Response
-    for (const provider of activeOutbound) {
-      tools.push({
-        id: provider,
-        name: PROVIDER_LABELS[provider] || provider,
-        category: "Outbound",
-        role: PROVIDER_ROLES[provider] || "Outbound",
-        leadsInfluenced: outboundLeadsPerTool,
-        customersWon: customersPerTool,
-        mrr: formatCurrency(outboundMrrPerTool, defaultCurrency),
-        replyRate: undefined,
-        meetingRate: undefined,
-      });
-    }
-
-    // 4) Top workflows
-    // Only show workflows if we actually have revenue
-    const topWorkflows: TopWorkflowApi[] = [];
-
-    if (totalWonMrr > 0) {
-      topWorkflows.push({
-        id: "wf_combined_revenue",
-        label: "Prospecting → Outbound → Closed Won",
-        mrr: formatCurrency(totalWonMrr, defaultCurrency),
-        customers: totalCustomers,
-        summary: "Aggregated revenue from all currently active tools.",
-      });
-    }
-
-    const response = {
+    return res.json({
       tools,
       summary: {
         prospectingCount,
         outboundCount,
-        totalLeadsInfluenced: approxLeadsInfluenced,
+        totalLeadsInfluenced,
         totalMrrFormatted: formatCurrency(totalWonMrr, defaultCurrency),
       },
       topWorkflows,
-    };
-
-    return res.json(response);
+    });
   } catch (err) {
     console.error("Error loading performance:", err);
     return res.status(500).json({ error: "Failed to load performance" });

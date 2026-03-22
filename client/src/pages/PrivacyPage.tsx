@@ -22,7 +22,7 @@ export default function PrivacyPage() {
                   1. Overview
                 </h2>
                 <p>
-                  This Privacy Policy explains how Revenuela (&quot;we&quot;,
+                  This Privacy Policy explains how iqpipe (&quot;we&quot;,
                   &quot;us&quot;, &quot;our&quot;) collects, uses and protects
                   personal data when you use our website, app and services.
                 </p>
@@ -55,7 +55,7 @@ export default function PrivacyPage() {
                   3. How we use data
                 </h2>
                 <ul className="list-disc list-inside space-y-1">
-                  <li>To provide and improve the Revenuela application.</li>
+                  <li>To provide and improve the iqpipe application.</li>
                   <li>
                     To secure and monitor the performance of our infrastructure.
                   </li>
@@ -89,7 +89,7 @@ export default function PrivacyPage() {
                 </h2>
                 <p className="mb-2">
                   We may share data with trusted service providers who help us
-                  operate Revenuela (e.g. hosting, email delivery, analytics).
+                  operate iqpipe (e.g. hosting, email delivery, analytics).
                   These providers act as processors and only process data
                   according to our instructions.
                 </p>
@@ -129,10 +129,10 @@ export default function PrivacyPage() {
                 <p className="mt-2">
                   To exercise these rights, contact us at{" "}
                   <a
-                    href="mailto:hello@revenuela.com"
+                    href="mailto:hello@iqpipe.io"
                     className="text-cyan-300 underline underline-offset-4"
                   >
-                    hello@revenuela.com
+                    hello@iqpipe.io
                   </a>
                   .
                 </p>
@@ -168,10 +168,10 @@ export default function PrivacyPage() {
                   For questions about this Policy or how we handle data, email
                   us at{" "}
                   <a
-                    href="mailto:hello@revenuela.com"
+                    href="mailto:hello@iqpipe.io"
                     className="text-cyan-300 underline underline-offset-4"
                   >
-                    hello@revenuela.com
+                    hello@iqpipe.io
                   </a>
                   .
                 </p>

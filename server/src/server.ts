@@ -1,7 +1,5 @@
+import "./env"; // must be first — loads .env before any module initialises PrismaClient
 import app from "./app";
-import dotenv from "dotenv";
-
-dotenv.config();
 
 const PORT = process.env.PORT || 4000;
 

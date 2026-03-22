@@ -193,7 +193,7 @@ export default function JourneysPage() {
   // 1. FETCH WORKSPACE ID
   useEffect(() => {
     async function getWs() {
-      const token = localStorage.getItem("revenuela_token");
+      const token = localStorage.getItem("iqpipe_token");
       if (!token) return;
       try {
         const res = await fetch(`${API_BASE}/api/workspaces/primary`, { headers: { Authorization: `Bearer ${token}` }});
@@ -213,7 +213,7 @@ export default function JourneysPage() {
     const fetchJourneys = async () => {
       setStatus("loading");
       try {
-        const token = localStorage.getItem("revenuela_token");
+        const token = localStorage.getItem("iqpipe_token");
         const res = await fetch(`${API_BASE}/api/journeys?workspaceId=${encodeURIComponent(workspaceId)}`, {
           headers: { Authorization: `Bearer ${token}` }
         });

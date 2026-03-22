@@ -13,7 +13,7 @@ export default function Footer() {
             </div>
             <div className="leading-tight">
               <div className="text-xs font-semibold text-slate-50">
-                Revenuela
+                iqpipe
               </div>
               <div className="text-[10px] text-slate-500">
                 One schema for GTM revenue
@@ -33,26 +33,23 @@ export default function Footer() {
           </div>
           <ul className="space-y-1">
             <li>
-              <a href="/how-it-works" className="hover:text-slate-200">
-                How it works
+              <a href="/demo" className="hover:text-slate-200">
+                Demo
               </a>
             </li>
             <li>
-              <a href="/dashboards-kpis" className="hover:text-slate-200">
-                Dashboards & KPIs
+              <a href="/gtm-stack" className="hover:text-slate-200">
+                GTM Stack
               </a>
             </li>
             <li>
-              <a href="/use-cases" className="hover:text-slate-200">
-                Use cases
+              <a href="/integrations" className="hover:text-slate-200">
+                Integrations
               </a>
             </li>
             <li>
-              <a
-                href="/why-revenuela-vs-sheets"
-                className="hover:text-slate-200"
-              >
-                Why Revenuela vs sheets
+              <a href="/pricing" className="hover:text-slate-200">
+                Pricing
               </a>
             </li>
           </ul>
@@ -100,10 +97,10 @@ export default function Footer() {
             </li>
             <li>
               <a
-                href="mailto:hello@revenuela.com"
+                href="mailto:hello@iqpipe.io"
                 className="hover:text-slate-200"
               >
-                hello@revenuela.com
+                hello@iqpipe.io
               </a>
             </li>
           </ul>
@@ -132,7 +129,7 @@ export default function Footer() {
       <div className="border-t border-slate-900">
         <div className="mx-auto max-w-6xl px-4 py-4 flex flex-col md:flex-row items-center justify-between gap-3 text-[11px] text-slate-500">
           <div>
-            © {new Date().getFullYear()} Revenuela. All rights reserved.
+            © {new Date().getFullYear()} iqpipe. All rights reserved.
           </div>
           <div className="flex items-center gap-3">
             <span className="hidden md:inline">Made for GTM teams.</span>

@@ -11,7 +11,7 @@ export default function ContactPage() {
           <div className="mx-auto max-w-3xl px-4 pt-10 pb-12 md:pt-14 md:pb-16">
             <div className="inline-flex items-center gap-2 rounded-full border border-indigo-500/40 bg-slate-950/80 px-3 py-1 mb-4 text-[11px] text-indigo-200">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              Talk to the Revenuela team
+              Talk to the iqpipe team
             </div>
 
             <h1 className="text-3xl md:text-4xl font-semibold leading-tight mb-3">
@@ -19,12 +19,12 @@ export default function ContactPage() {
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-indigo-400 to-fuchsia-400">
                 GTM stack
               </span>{" "}
-              and we’ll show you what Revenuela can do.
+              and we’ll show you what iqpipe can do.
             </h1>
 
             <p className="text-sm md:text-[13px] text-slate-300 mb-8 max-w-2xl">
               Share how you prospect, run outbound and track revenue today. We’ll
-              map it to Revenuela’s schema, set up a tailored live demo, and
+              map it to iqpipe’s schema, set up a tailored live demo, and
               help you estimate ROI for your team.
             </p>
 

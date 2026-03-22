@@ -1,0 +1,773 @@
+import { useState, useEffect, useCallback } from "react";
+import {
+  Bot, Zap, RefreshCw, Calendar, ChevronDown, CheckCircle2,
+  AlertTriangle, XCircle, Activity, GitBranch, Layers,
+  ChevronRight, Workflow,
+} from "lucide-react";
+import { API_BASE_URL } from "../../config";
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+interface QueueStats { pending: number; processing: number; done: number; failed: number; total: number; }
+interface WorkflowError { id: string; errorCode: string; errorDetail: string; retryCount: number; createdAt: string; }
+interface WorkflowRow {
+  workflowId: string; totalEvents: number; done: number; pending: number; failed: number;
+  successRate: number; outcomeEvents: number; processEvents: number;
+  sourceApps: string[]; lastEventAt: string | null; lastEventType: string | null;
+  recentErrors: WorkflowError[];
+}
+interface GlobalError { id: string; source: string; errorCode: string; errorDetail: string; retryCount: number; resolvedAt: string | null; createdAt: string; }
+interface MakeError { id: string; errorCode: string; errorDetail: string; retryCount: number; createdAt: string; }
+interface WorkflowMeta {
+  id: string;
+  n8nId: string;
+  name: string;
+  active: boolean;
+  tags: string[];
+  appsUsed: string[];
+  nodeCount: number;
+  triggerType: string;
+  description: string | null;
+  lastUpdatedAt: string | null;
+  syncedAt: string;
+}
+
+interface AutomationData {
+  n8n: {
+    totalWorkflows: number; totalEvents: number; outcomeEvents: number; processEvents: number;
+    successRate: number; queueStats: QueueStats; workflows: WorkflowRow[]; errors: GlobalError[];
+  };
+  make: { totalEvents: number; errors: MakeError[]; isConnected: boolean; };
+}
+
+type Period = "7d" | "30d" | "90d" | "all";
+const PERIOD_LABELS: Record<Period, string> = {
+  "7d": "Last 7 days", "30d": "Last 30 days", "90d": "Last 90 days", "all": "All time",
+};
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function relativeTime(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const m = Math.floor(diff / 60_000);
+  if (m < 1)  return "just now";
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  return `${Math.floor(h / 24)}d ago`;
+}
+
+function triggerIcon(type: string) {
+  const icons: Record<string, string> = {
+    webhook: "⚡", schedule: "⏱", email: "📧", event: "🔔", manual: "▶",
+  };
+  return icons[type] ?? "▶";
+}
+
+function triggerLabel(type: string) {
+  const labels: Record<string, string> = {
+    webhook: "Webhook", schedule: "Schedule", email: "Email", event: "Event", manual: "Manual",
+  };
+  return labels[type] ?? type;
+}
+
+function SuccessBar({ rate }: { rate: number }) {
+  const color = rate >= 90 ? "bg-emerald-500" : rate >= 70 ? "bg-amber-500" : "bg-rose-500";
+  const text  = rate >= 90 ? "text-emerald-400" : rate >= 70 ? "text-amber-400" : "text-rose-400";
+  return (
+    <div className="flex items-center gap-2">
+      <div className="w-16 h-1.5 bg-slate-800 rounded-full overflow-hidden">
+        <div className={`h-full rounded-full ${color}`} style={{ width: `${rate}%` }} />
+      </div>
+      <span className={`text-xs font-semibold tabular-nums ${text}`}>{rate}%</span>
+    </div>
+  );
+}
+
+function StatCard({ label, value, sub, color = "slate" }: { label: string; value: string | number; sub?: string; color?: string }) {
+  const colors: Record<string, string> = {
+    slate:   "text-white border-slate-800 bg-slate-900",
+    emerald: "text-emerald-400 border-emerald-500/30 bg-emerald-500/5",
+    amber:   "text-amber-400 border-amber-500/30 bg-amber-500/5",
+    rose:    "text-rose-400 border-rose-500/30 bg-rose-500/5",
+    indigo:  "text-indigo-400 border-indigo-500/30 bg-indigo-500/5",
+    blue:    "text-blue-400 border-blue-500/30 bg-blue-500/5",
+  };
+  return (
+    <div className={`rounded-xl border p-4 ${colors[color] ?? colors.slate}`}>
+      <p className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">{label}</p>
+      <p className={`text-2xl font-black tabular-nums ${colors[color]?.split(" ")[0] ?? "text-white"}`}>{value}</p>
+      {sub && <p className="text-[10px] text-slate-600 mt-0.5">{sub}</p>}
+    </div>
+  );
+}
+
+function QueueBar({ stats }: { stats: QueueStats }) {
+  const total = Math.max(1, stats.total);
+  const bars = [
+    { label: "Done",       count: stats.done,       color: "bg-emerald-500", text: "text-emerald-400" },
+    { label: "Pending",    count: stats.pending,     color: "bg-indigo-500",  text: "text-indigo-400"  },
+    { label: "Processing", count: stats.processing,  color: "bg-amber-500",   text: "text-amber-400"   },
+    { label: "Failed",     count: stats.failed,      color: "bg-rose-500",    text: "text-rose-400"    },
+  ].filter(b => b.count > 0);
+
+  return (
+    <div className="space-y-1.5">
+      <div className="flex h-2 rounded-full overflow-hidden gap-px bg-slate-800">
+        {bars.map(b => (
+          <div key={b.label} className={`${b.color} transition-all`} style={{ width: `${(b.count / total) * 100}%` }} />
+        ))}
+      </div>
+      <div className="flex items-center gap-4 flex-wrap">
+        {[
+          { label: "Done",       count: stats.done,       color: "text-emerald-400" },
+          { label: "Pending",    count: stats.pending,     color: "text-indigo-400"  },
+          { label: "Processing", count: stats.processing,  color: "text-amber-400"   },
+          { label: "Failed",     count: stats.failed,      color: "text-rose-400"    },
+        ].map(b => (
+          <div key={b.label} className="flex items-center gap-1.5">
+            <span className={`text-sm font-bold tabular-nums ${b.color}`}>{b.count.toLocaleString()}</span>
+            <span className="text-[10px] text-slate-600">{b.label}</span>
+          </div>
+        ))}
+        <span className="text-[10px] text-slate-700 ml-auto">{stats.total.toLocaleString()} total</span>
+      </div>
+    </div>
+  );
+}
+
+// ─── Workflow Row ─────────────────────────────────────────────────────────────
+
+function WorkflowRowItem({ wf }: { wf: WorkflowRow }) {
+  const [expanded, setExpanded] = useState(false);
+  const hasErrors = wf.recentErrors.length > 0;
+
+  return (
+    <>
+      <tr
+        className="border-b border-slate-800/50 hover:bg-slate-800/30 cursor-pointer transition-colors"
+        onClick={() => hasErrors && setExpanded(v => !v)}
+      >
+        <td className="px-4 py-3">
+          <div className="flex items-center gap-2">
+            <GitBranch size={12} className="text-indigo-400 shrink-0" />
+            <span className="text-xs font-mono text-white truncate max-w-[180px]">{wf.workflowId}</span>
+            {hasErrors && (
+              <ChevronRight size={12} className={`text-slate-600 transition-transform shrink-0 ${expanded ? "rotate-90" : ""}`} />
+            )}
+          </div>
+        </td>
+        <td className="px-4 py-3 text-right">
+          <span className="text-xs tabular-nums text-slate-300 font-semibold">{wf.totalEvents.toLocaleString()}</span>
+        </td>
+        <td className="px-4 py-3 text-right">
+          <div className="flex items-center justify-end gap-1.5">
+            <span className="text-xs tabular-nums text-emerald-400 font-semibold">{wf.outcomeEvents}</span>
+            <span className="text-[10px] text-slate-700">outcome</span>
+          </div>
+        </td>
+        <td className="px-4 py-3">
+          <SuccessBar rate={wf.successRate} />
+        </td>
+        <td className="px-4 py-3">
+          <div className="flex items-center gap-1 flex-wrap">
+            {wf.sourceApps.slice(0, 3).map(app => (
+              <span key={app} className="px-1.5 py-0.5 rounded text-[10px] bg-slate-800 border border-slate-700 text-slate-400 font-mono">
+                {app}
+              </span>
+            ))}
+            {wf.sourceApps.length > 3 && (
+              <span className="text-[10px] text-slate-600">+{wf.sourceApps.length - 3}</span>
+            )}
+          </div>
+        </td>
+        <td className="px-4 py-3 text-right">
+          {wf.lastEventAt ? (
+            <span className="text-[10px] text-slate-500 tabular-nums">{relativeTime(wf.lastEventAt)}</span>
+          ) : (
+            <span className="text-[10px] text-slate-700">—</span>
+          )}
+        </td>
+        <td className="px-4 py-3 text-right">
+          {wf.failed > 0 ? (
+            <span className="text-xs font-semibold text-rose-400 tabular-nums">{wf.failed}</span>
+          ) : (
+            <CheckCircle2 size={13} className="text-emerald-500 ml-auto" />
+          )}
+        </td>
+      </tr>
+      {expanded && hasErrors && wf.recentErrors.map(err => (
+        <tr key={err.id} className="bg-rose-500/3 border-b border-slate-800/30">
+          <td colSpan={7} className="px-8 py-2">
+            <div className="flex items-start gap-3">
+              <XCircle size={11} className="text-rose-400 mt-0.5 shrink-0" />
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-mono font-semibold text-rose-400">{err.errorCode}</span>
+                  <span className="text-[10px] text-slate-600">· {err.retryCount} retries</span>
+                  <span className="text-[10px] text-slate-700 ml-auto">{relativeTime(err.createdAt)}</span>
+                </div>
+                <p className="text-[10px] text-slate-500 truncate mt-0.5">{err.errorDetail}</p>
+              </div>
+            </div>
+          </td>
+        </tr>
+      ))}
+    </>
+  );
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
+
+export default function AutomationHealthPage() {
+  const [data,        setData]        = useState<AutomationData | null>(null);
+  const [workspaceId, setWorkspaceId] = useState("");
+  const [loading,     setLoading]     = useState(true);
+  const [period,      setPeriod]      = useState<Period>("30d");
+  const [showPeriod,  setShowPeriod]  = useState(false);
+  const [lastRefresh, setLastRefresh] = useState(new Date());
+
+  // n8n connection state
+  const [connStatus,      setConnStatus]      = useState<any>(null);
+  const [workflowMeta,    setWorkflowMeta]    = useState<WorkflowMeta[]>([]);
+  const [metaLoading,     setMetaLoading]     = useState(false);
+  const [showConnectForm, setShowConnectForm] = useState(false);
+  const [formBaseUrl,     setFormBaseUrl]     = useState("");
+  const [formApiKey,      setFormApiKey]      = useState("");
+  const [connecting,      setConnecting]      = useState(false);
+  const [connectError,    setConnectError]    = useState("");
+  const [syncing,         setSyncing]         = useState(false);
+
+  const token = () => localStorage.getItem("iqpipe_token") ?? "";
+
+  useEffect(() => {
+    fetch(`${API_BASE_URL}/api/workspaces/primary`, {
+      headers: { Authorization: `Bearer ${token()}` },
+    })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d?.id) setWorkspaceId(d.id); })
+      .catch(() => {});
+  }, []);
+
+  const load = useCallback(async (wsId: string, p: Period) => {
+    if (!wsId) return;
+    setLoading(true);
+    try {
+      const r = await fetch(
+        `${API_BASE_URL}/api/automation-health?workspaceId=${wsId}&period=${p}`,
+        { headers: { Authorization: `Bearer ${token()}` } },
+      );
+      if (r.ok) { setData(await r.json()); setLastRefresh(new Date()); }
+    } catch {} finally { setLoading(false); }
+  }, []);
+
+  const loadConnStatus = useCallback(async (wsId: string) => {
+    if (!wsId) return;
+    try {
+      const r = await fetch(`${API_BASE_URL}/api/n8n-connect/status?workspaceId=${wsId}`, {
+        headers: { Authorization: `Bearer ${token()}` },
+      });
+      if (r.ok) setConnStatus(await r.json());
+    } catch {}
+  }, []);
+
+  const loadWorkflowMeta = useCallback(async (wsId: string) => {
+    if (!wsId) return;
+    setMetaLoading(true);
+    try {
+      const r = await fetch(`${API_BASE_URL}/api/n8n-connect/workflows?workspaceId=${wsId}`, {
+        headers: { Authorization: `Bearer ${token()}` },
+      });
+      if (r.ok) setWorkflowMeta(await r.json());
+    } catch {} finally { setMetaLoading(false); }
+  }, []);
+
+  useEffect(() => {
+    if (workspaceId) {
+      load(workspaceId, period);
+      loadConnStatus(workspaceId);
+      loadWorkflowMeta(workspaceId);
+    }
+  }, [workspaceId, period, load, loadConnStatus, loadWorkflowMeta]);
+
+  async function handleConnect(e: React.FormEvent) {
+    e.preventDefault();
+    if (!workspaceId || !formBaseUrl || !formApiKey) return;
+    setConnecting(true);
+    setConnectError("");
+    try {
+      const r = await fetch(`${API_BASE_URL}/api/n8n-connect/connect`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token()}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ workspaceId, baseUrl: formBaseUrl, apiKey: formApiKey }),
+      });
+      const d = await r.json();
+      if (!r.ok) { setConnectError(d.error || "Connection failed"); return; }
+      setShowConnectForm(false);
+      setFormApiKey("");
+      await loadConnStatus(workspaceId);
+      setTimeout(() => loadWorkflowMeta(workspaceId), 3000);
+    } catch (err: any) {
+      setConnectError(err.message);
+    } finally {
+      setConnecting(false);
+    }
+  }
+
+  async function handleDisconnect() {
+    if (!workspaceId) return;
+    if (!confirm("Disconnect n8n? All synced workflow metadata will be removed.")) return;
+    await fetch(`${API_BASE_URL}/api/n8n-connect?workspaceId=${workspaceId}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token()}` },
+    });
+    setConnStatus(null);
+    setWorkflowMeta([]);
+  }
+
+  async function handleSyncNow() {
+    if (!workspaceId || syncing) return;
+    setSyncing(true);
+    try {
+      await fetch(`${API_BASE_URL}/api/n8n-connect/sync`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token()}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ workspaceId }),
+      });
+      await loadConnStatus(workspaceId);
+      await loadWorkflowMeta(workspaceId);
+    } finally {
+      setSyncing(false);
+    }
+  }
+
+  const n8n   = data?.n8n;
+  const make  = data?.make;
+  const openErrors = (n8n?.errors.length ?? 0) + (make?.errors.length ?? 0);
+  const queueActive = (n8n?.queueStats.pending ?? 0) + (n8n?.queueStats.processing ?? 0);
+
+  return (
+    <div className="min-h-screen bg-slate-950 text-white px-6 py-6 space-y-6 max-w-5xl">
+
+      {/* Header */}
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div className="flex items-center gap-3">
+          <Bot size={18} className="text-indigo-400" />
+          <div>
+            <h1 className="text-base font-bold text-white leading-none">Automation Health</h1>
+            <p className="text-[11px] text-slate-500 mt-0.5">
+              n8n and Make.com workflow event report
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <div className="relative">
+            <button
+              onClick={() => setShowPeriod(v => !v)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 hover:border-slate-700 text-xs text-slate-400 transition-colors"
+            >
+              <Calendar size={11} className="text-slate-600" />
+              {PERIOD_LABELS[period]}
+              <ChevronDown size={11} className={`text-slate-600 transition-transform ${showPeriod ? "rotate-180" : ""}`} />
+            </button>
+            {showPeriod && (
+              <div className="absolute top-full right-0 mt-1 bg-slate-900 border border-slate-700 rounded-xl overflow-hidden z-20 shadow-xl w-40">
+                {(Object.entries(PERIOD_LABELS) as [Period, string][]).map(([k, l]) => (
+                  <button
+                    key={k}
+                    onClick={() => { setPeriod(k); setShowPeriod(false); }}
+                    className={`w-full text-left px-4 py-2 text-xs hover:bg-slate-800 transition-colors ${period === k ? "text-indigo-400 font-medium" : "text-slate-400"}`}
+                  >
+                    {l}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <span className="text-[10px] text-slate-700 tabular-nums">
+            {lastRefresh.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+          </span>
+          <button
+            onClick={() => load(workspaceId, period)}
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-800 hover:border-slate-700 text-xs text-slate-400 transition-colors"
+          >
+            <RefreshCw size={11} className={loading ? "animate-spin" : ""} />
+          </button>
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="flex items-center justify-center h-48 text-slate-600 text-sm gap-2">
+          <RefreshCw size={14} className="animate-spin" /> Loading automation data…
+        </div>
+      ) : !data ? (
+        <div className="flex items-center justify-center h-48 text-slate-700 text-sm">No data available</div>
+      ) : (
+        <>
+          {/* Overview stat cards */}
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+            <StatCard label="n8n Workflows"  value={n8n?.totalWorkflows ?? 0}    color="indigo" />
+            <StatCard label="Total Events"   value={(n8n?.totalEvents ?? 0).toLocaleString()} sub={PERIOD_LABELS[period]} color="slate" />
+            <StatCard label="Success Rate"   value={`${n8n?.successRate ?? 0}%`}  color={(n8n?.successRate ?? 0) >= 90 ? "emerald" : (n8n?.successRate ?? 0) >= 70 ? "amber" : "rose"} />
+            <StatCard label="Queue Active"   value={queueActive}                  color={queueActive > 0 ? "amber" : "emerald"} sub="pending + processing" />
+            <StatCard label="Open Errors"    value={openErrors}                   color={openErrors === 0 ? "emerald" : "rose"} />
+          </div>
+
+          {/* ── n8n Connection Panel ── */}
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden">
+            <div className="px-5 py-3.5 border-b border-slate-800 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <Bot size={14} className="text-indigo-400" />
+                <span className="text-sm font-semibold text-white">n8n Instance</span>
+                {connStatus?.connected ? (
+                  <span className="flex items-center gap-1 text-[10px] text-emerald-400">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    Connected
+                  </span>
+                ) : (
+                  <span className="text-[10px] text-slate-600">Not connected</span>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                {connStatus?.connected && (
+                  <>
+                    <button
+                      onClick={handleSyncNow}
+                      disabled={syncing}
+                      className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-800 border border-slate-700 hover:border-slate-600 text-xs text-slate-400 hover:text-white transition-colors disabled:opacity-50"
+                    >
+                      <RefreshCw size={11} className={syncing ? "animate-spin" : ""} />
+                      {syncing ? "Syncing\u2026" : "Sync Now"}
+                    </button>
+                    <button
+                      onClick={handleDisconnect}
+                      className="px-2.5 py-1.5 rounded-lg text-xs text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 border border-transparent hover:border-rose-500/20 transition-colors"
+                    >
+                      Disconnect
+                    </button>
+                  </>
+                )}
+                {!connStatus?.connected && (
+                  <button
+                    onClick={() => setShowConnectForm(v => !v)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-500/10 border border-indigo-500/30 hover:bg-indigo-500/20 text-xs text-indigo-400 transition-colors"
+                  >
+                    Connect n8n
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {connStatus?.connected ? (
+              <div className="px-5 py-4 flex items-center gap-6 flex-wrap">
+                <div>
+                  <p className="text-[10px] text-slate-600 uppercase tracking-wider">Instance</p>
+                  <p className="text-xs font-mono text-slate-300 mt-0.5">{connStatus.baseUrl}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-slate-600 uppercase tracking-wider">Workflows</p>
+                  <p className="text-sm font-bold text-white">{connStatus.workflowCount}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-slate-600 uppercase tracking-wider">Last Synced</p>
+                  <p className="text-xs text-slate-400">{connStatus.lastSyncAt ? relativeTime(connStatus.lastSyncAt) : "Syncing\u2026"}</p>
+                </div>
+                {connStatus.lastError && (
+                  <div className="flex items-center gap-1.5 text-xs text-amber-400">
+                    <AlertTriangle size={12} />
+                    {connStatus.lastError}
+                  </div>
+                )}
+              </div>
+            ) : showConnectForm ? (
+              <form onSubmit={handleConnect} className="p-5 space-y-4">
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] text-slate-500 font-medium">n8n Instance URL</label>
+                    <input
+                      type="url"
+                      placeholder="https://your-instance.n8n.cloud"
+                      value={formBaseUrl}
+                      onChange={e => setFormBaseUrl(e.target.value)}
+                      required
+                      className="w-full px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 focus:border-indigo-500 focus:outline-none text-sm text-white placeholder-slate-600 transition-colors"
+                    />
+                    <p className="text-[10px] text-slate-700">Your n8n cloud URL or self-hosted base URL</p>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] text-slate-500 font-medium">API Key</label>
+                    <input
+                      type="password"
+                      placeholder="n8n_api_\u2026"
+                      value={formApiKey}
+                      onChange={e => setFormApiKey(e.target.value)}
+                      required
+                      className="w-full px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 focus:border-indigo-500 focus:outline-none text-sm text-white placeholder-slate-600 transition-colors"
+                    />
+                    <p className="text-[10px] text-slate-700">Settings &#8594; API &#8594; Create API key in your n8n instance</p>
+                  </div>
+                </div>
+                {connectError && (
+                  <div className="flex items-center gap-2 text-xs text-rose-400 bg-rose-500/5 border border-rose-500/20 rounded-lg px-3 py-2">
+                    <XCircle size={12} />
+                    {connectError}
+                  </div>
+                )}
+                <div className="flex items-center gap-2">
+                  <button
+                    type="submit"
+                    disabled={connecting}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-indigo-500 hover:bg-indigo-600 text-white text-sm font-medium transition-colors disabled:opacity-60"
+                  >
+                    {connecting ? <><RefreshCw size={12} className="animate-spin" /> Testing connection\u2026</> : "Connect & Sync"}
+                  </button>
+                  <button type="button" onClick={() => setShowConnectForm(false)} className="px-3 py-2 text-xs text-slate-500 hover:text-slate-300">
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <div className="px-5 py-6 text-center">
+                <p className="text-sm text-slate-600">Connect your n8n instance to see workflow definitions and app usage</p>
+                <p className="text-[11px] text-slate-700 mt-1">API key required &#8212; no workflow canvas data is imported</p>
+              </div>
+            )}
+          </div>
+
+          {/* ── Connected Workflows (from n8n instance) ── */}
+          {connStatus?.connected && (
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden">
+              <div className="px-5 py-3.5 border-b border-slate-800 flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <Workflow size={14} className="text-indigo-400" />
+                  <span className="text-sm font-semibold text-white">Connected Workflows</span>
+                  <span className="ml-1 px-2 py-0.5 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-[10px] text-indigo-400 font-semibold">
+                    {workflowMeta.length}
+                  </span>
+                </div>
+                {metaLoading && <RefreshCw size={12} className="text-slate-600 animate-spin" />}
+              </div>
+
+              {metaLoading && workflowMeta.length === 0 ? (
+                <div className="flex items-center justify-center h-24 gap-2 text-slate-600 text-xs">
+                  <RefreshCw size={12} className="animate-spin" /> Loading workflows\u2026
+                </div>
+              ) : workflowMeta.length === 0 ? (
+                <div className="px-5 py-8 text-center">
+                  <p className="text-sm text-slate-600">No workflows synced yet</p>
+                  <p className="text-[11px] text-slate-700 mt-1">Click &#8220;Sync Now&#8221; to fetch your n8n workflows</p>
+                </div>
+              ) : (
+                <div className="divide-y divide-slate-800/50">
+                  {workflowMeta.map(wf => (
+                    <div key={wf.id} className="px-5 py-3.5 flex items-start gap-4 hover:bg-slate-800/20 transition-colors">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${wf.active ? "bg-emerald-500" : "bg-slate-700"}`} />
+                          <span className="text-sm font-medium text-white truncate">{wf.name}</span>
+                          <span className="text-[10px] text-slate-600 font-mono shrink-0">
+                            {triggerIcon(wf.triggerType)} {triggerLabel(wf.triggerType)}
+                          </span>
+                          {wf.tags.map(tag => (
+                            <span key={tag} className="px-1.5 py-0.5 rounded text-[10px] bg-slate-800 border border-slate-700 text-slate-500">
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                        {wf.description && (
+                          <p className="text-[11px] text-slate-600 mt-0.5 truncate">{wf.description}</p>
+                        )}
+                        <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                          {wf.appsUsed.slice(0, 8).map(app => (
+                            <span key={app} className="px-2 py-0.5 rounded-full text-[10px] bg-slate-800/80 border border-slate-700/80 text-slate-400 font-medium">
+                              {app}
+                            </span>
+                          ))}
+                          {wf.appsUsed.length > 8 && (
+                            <span className="text-[10px] text-slate-600">+{wf.appsUsed.length - 8} more</span>
+                          )}
+                          {wf.appsUsed.length === 0 && (
+                            <span className="text-[10px] text-slate-700">No external apps detected</span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="shrink-0 text-right space-y-1">
+                        <p className="text-[10px] text-slate-700">{wf.nodeCount} nodes</p>
+                        {wf.lastUpdatedAt && (
+                          <p className="text-[10px] text-slate-700">Updated {relativeTime(wf.lastUpdatedAt)}</p>
+                        )}
+                        <p className="text-[10px] text-slate-800">Synced {relativeTime(wf.syncedAt)}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── n8n Section ── */}
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden">
+            <div className="px-5 py-3.5 border-b border-slate-800 flex items-center gap-2">
+              <Workflow size={14} className="text-indigo-400" />
+              <span className="text-sm font-semibold text-white">n8n Workflows</span>
+              <span className="ml-2 px-2 py-0.5 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-[10px] text-indigo-400 font-semibold">
+                {n8n?.totalWorkflows} workflow{n8n?.totalWorkflows !== 1 ? "s" : ""}
+              </span>
+            </div>
+
+            {/* Queue overview bar */}
+            {n8n && n8n.queueStats.total > 0 && (
+              <div className="px-5 py-3 border-b border-slate-800/50">
+                <p className="text-[10px] text-slate-600 uppercase tracking-wider font-semibold mb-2">Queue State (all-time)</p>
+                <QueueBar stats={n8n.queueStats} />
+              </div>
+            )}
+
+            {/* Event class split */}
+            {n8n && n8n.totalEvents > 0 && (
+              <div className="px-5 py-3 border-b border-slate-800/50 flex items-center gap-6">
+                <div className="flex items-center gap-2">
+                  <Zap size={11} className="text-emerald-400" />
+                  <span className="text-xs text-slate-400">
+                    <span className="font-bold text-emerald-400">{n8n.outcomeEvents.toLocaleString()}</span> outcome events
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Activity size={11} className="text-slate-500" />
+                  <span className="text-xs text-slate-400">
+                    <span className="font-bold text-slate-300">{n8n.processEvents.toLocaleString()}</span> process events
+                  </span>
+                </div>
+                <span className="text-[10px] text-slate-700 ml-auto">Outcome events update canonical dataset · Process events power workflow analytics only</span>
+              </div>
+            )}
+
+            {/* Workflows table */}
+            {n8n && n8n.workflows.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left">
+                  <thead>
+                    <tr className="border-b border-slate-800">
+                      {["Workflow", "Events", "Outcomes", "Success", "Source Apps", "Last Event", "Errors"].map(h => (
+                        <th key={h} className="px-4 py-2.5 text-[10px] text-slate-600 uppercase tracking-wider font-semibold whitespace-nowrap text-right first:text-left last:text-right">
+                          {h}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {n8n.workflows.map(wf => <WorkflowRowItem key={wf.workflowId} wf={wf} />)}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="px-5 py-10 text-center">
+                <Bot size={28} className="text-slate-700 mx-auto mb-3" />
+                <p className="text-sm text-slate-600 font-medium">No n8n workflows detected yet</p>
+                <p className="text-[11px] text-slate-700 mt-1">
+                  Send events to <span className="font-mono text-slate-500">POST /api/webhooks/n8n</span> to activate
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* ── Make.com Section ── */}
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden">
+            <div className="px-5 py-3.5 border-b border-slate-800 flex items-center gap-2">
+              <Layers size={14} className="text-purple-400" />
+              <span className="text-sm font-semibold text-white">Make.com</span>
+              {make?.isConnected ? (
+                <span className="ml-2 flex items-center gap-1 text-[10px] text-emerald-400">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  Connected
+                </span>
+              ) : (
+                <span className="ml-2 text-[10px] text-slate-600">Not connected</span>
+              )}
+            </div>
+
+            <div className="p-5">
+              {make?.isConnected || (make?.totalEvents ?? 0) > 0 ? (
+                <div className="space-y-4">
+                  <div className="flex items-center gap-4">
+                    <div className="flex flex-col">
+                      <span className="text-2xl font-black text-white tabular-nums">{(make?.totalEvents ?? 0).toLocaleString()}</span>
+                      <span className="text-[10px] text-slate-600">events in period</span>
+                    </div>
+                    <div className="flex flex-col">
+                      <span className={`text-2xl font-black tabular-nums ${(make?.errors.length ?? 0) === 0 ? "text-emerald-400" : "text-rose-400"}`}>
+                        {make?.errors.length ?? 0}
+                      </span>
+                      <span className="text-[10px] text-slate-600">open errors</span>
+                    </div>
+                  </div>
+                  {(make?.errors.length ?? 0) > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-[10px] text-slate-600 uppercase tracking-wider font-semibold">Recent Errors</p>
+                      {make!.errors.map(err => (
+                        <div key={err.id} className="flex items-start gap-3 bg-slate-800/50 rounded-lg px-3 py-2.5">
+                          <XCircle size={12} className="text-rose-400 mt-0.5 shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] font-mono font-semibold text-rose-400">{err.errorCode}</span>
+                              <span className="text-[10px] text-slate-600">· {err.retryCount} retries</span>
+                              <span className="text-[10px] text-slate-700 ml-auto">{relativeTime(err.createdAt)}</span>
+                            </div>
+                            <p className="text-[10px] text-slate-500 truncate mt-0.5">{err.errorDetail}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="text-center py-6">
+                  <Layers size={24} className="text-slate-700 mx-auto mb-2" />
+                  <p className="text-sm text-slate-600 font-medium">Make.com not connected</p>
+                  <p className="text-[11px] text-slate-700 mt-1">
+                    Send events via <span className="font-mono text-slate-500">POST /api/webhooks/make</span> to see automation reports here
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* ── Global Error Log ── */}
+          {(n8n?.errors.length ?? 0) > 0 && (
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden">
+              <div className="px-5 py-3.5 border-b border-slate-800 flex items-center gap-2">
+                <XCircle size={14} className="text-rose-400" />
+                <span className="text-sm font-semibold text-white">n8n Error Log</span>
+                <span className="ml-2 px-2 py-0.5 rounded-full bg-rose-500/10 border border-rose-500/20 text-[10px] text-rose-400 font-semibold">
+                  {n8n!.errors.length} unresolved
+                </span>
+              </div>
+              <div className="divide-y divide-slate-800/50">
+                {n8n!.errors.map(err => (
+                  <div key={err.id} className="px-5 py-3 flex items-start gap-3">
+                    <AlertTriangle size={12} className="text-rose-400 mt-0.5 shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-[10px] font-mono text-slate-500">{err.source}</span>
+                        <span className="text-[10px] font-semibold font-mono text-rose-400">{err.errorCode}</span>
+                        <span className="text-[10px] text-slate-700">{err.retryCount} retries</span>
+                        <span className="text-[10px] text-slate-700 ml-auto tabular-nums">{relativeTime(err.createdAt)}</span>
+                      </div>
+                      <p className="text-[10px] text-slate-500 mt-0.5 truncate">{err.errorDetail}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <p className="text-[10px] text-slate-700 pb-4">
+            n8n events are staged in the ingestion queue and processed asynchronously. Outcome events update canonical lead data; process events power workflow-level analytics only.
+          </p>
+        </>
+      )}
+    </div>
+  );
+}

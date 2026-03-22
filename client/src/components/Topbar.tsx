@@ -1,12 +1,15 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { 
-  Bell, 
-  Search, 
-  LogOut, 
-  Settings, 
-  User, 
-  Menu, 
+import {
+  Bell,
+  Search,
+  LogOut,
+  Settings,
+  User,
+  Menu,
+  Loader2,
+  Building,
+  Mail,
 } from "lucide-react";
 
 interface TopbarProps {
@@ -25,12 +28,29 @@ type Notification = {
   createdAt: string;
 };
 
+type LeadResult = {
+  id: string;
+  name: string;
+  company: string;
+  email?: string;
+  title?: string;
+};
+
 export default function Topbar({ onMenuClick }: TopbarProps) {
   const [profileOpen, setProfileOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const profileRef = useRef<HTMLDivElement>(null);
   const notifRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
+
+  // Search state
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<LeadResult[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const searchRef = useRef<HTMLDivElement>(null);
+  const workspaceIdRef = useRef<string | null>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loadingNotifs, setLoadingNotifs] = useState(false);
@@ -39,7 +59,7 @@ export default function Topbar({ onMenuClick }: TopbarProps) {
   const unreadCount = notifications.filter((n) => !n.isRead).length;
   
   // Get user info safely
-  const userString = localStorage.getItem("revenuela_user");
+  const userString = localStorage.getItem("iqpipe_user");
   const user = userString ? JSON.parse(userString) : { fullName: "User" };
 
   // Close dropdowns on outside click
@@ -52,14 +72,73 @@ export default function Topbar({ onMenuClick }: TopbarProps) {
       if (notifRef.current && !notifRef.current.contains(target)) {
         setNotifOpen(false);
       }
+      if (searchRef.current && !searchRef.current.contains(target)) {
+        setSearchOpen(false);
+      }
     }
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  // Debounced lead search
+  const runSearch = useCallback(async (q: string) => {
+    const token = localStorage.getItem("iqpipe_token");
+    if (!token) return;
+
+    // Lazy-fetch workspace ID once
+    if (!workspaceIdRef.current) {
+      try {
+        const wsRes = await fetch(`${API_BASE}/api/workspaces/primary`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (wsRes.ok) {
+          const ws = await wsRes.json();
+          workspaceIdRef.current = ws.id;
+        }
+      } catch { return; }
+    }
+
+    if (!workspaceIdRef.current) return;
+
+    try {
+      setSearchLoading(true);
+      const res = await fetch(
+        `${API_BASE}/api/leads?workspaceId=${encodeURIComponent(workspaceIdRef.current)}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      if (!res.ok) return;
+      const data = await res.json();
+      const lower = q.toLowerCase();
+      const filtered: LeadResult[] = (data.leads || [])
+        .filter((l: any) =>
+          l.name?.toLowerCase().includes(lower) ||
+          l.email?.toLowerCase().includes(lower) ||
+          l.company?.toLowerCase().includes(lower)
+        )
+        .slice(0, 7);
+      setSearchResults(filtered);
+      setSearchOpen(true);
+    } catch {
+      // silent
+    } finally {
+      setSearchLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (searchQuery.trim().length < 2) {
+      setSearchResults([]);
+      setSearchOpen(false);
+      return;
+    }
+    debounceRef.current = setTimeout(() => runSearch(searchQuery.trim()), 300);
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+  }, [searchQuery, runSearch]);
+
   // Fetch notifications
   useEffect(() => {
-    const token = localStorage.getItem("revenuela_token");
+    const token = localStorage.getItem("iqpipe_token");
     if (!token) return;
 
     const fetchNotifications = async () => {
@@ -93,7 +172,7 @@ export default function Topbar({ onMenuClick }: TopbarProps) {
     setNotifOpen(next);
     
     if (next && unreadCount > 0) {
-      const token = localStorage.getItem("revenuela_token");
+      const token = localStorage.getItem("iqpipe_token");
       if (!token) return;
       try {
         await fetch(`${API_BASE}/api/notifications/mark-read`, {
@@ -114,8 +193,8 @@ export default function Topbar({ onMenuClick }: TopbarProps) {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem("revenuela_token");
-    localStorage.removeItem("revenuela_user");
+    localStorage.removeItem("iqpipe_token");
+    localStorage.removeItem("iqpipe_user");
     window.location.replace("/login");
   };
 
@@ -141,17 +220,78 @@ export default function Topbar({ onMenuClick }: TopbarProps) {
 
       {/* Search Bar */}
       <div className="flex-1 flex items-center gap-3">
-        <div className="relative max-w-md w-full hidden sm:block">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
+        <div className="relative max-w-md w-full hidden sm:block" ref={searchRef}>
+          {searchLoading
+            ? <Loader2 className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 animate-spin" size={16} />
+            : <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
+          }
           <input
             type="text"
             placeholder="Search leads..."
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            onFocus={() => { if (searchResults.length > 0) setSearchOpen(true); }}
+            onKeyDown={e => {
+              if (e.key === "Escape") { setSearchOpen(false); setSearchQuery(""); }
+              if (e.key === "Enter" && searchResults.length > 0) {
+                navigate(`/leads/${searchResults[0].id}`);
+                setSearchOpen(false);
+                setSearchQuery("");
+              }
+            }}
             className="w-full bg-slate-900 border border-slate-700 rounded-xl pl-10 pr-4 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition-all"
           />
+
+          {/* Results dropdown */}
+          {searchOpen && searchResults.length > 0 && (
+            <div className="absolute top-full mt-2 left-0 w-full bg-slate-900 border border-slate-700 rounded-xl shadow-2xl overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-150">
+              {searchResults.map((lead, i) => (
+                <button
+                  key={lead.id}
+                  onClick={() => {
+                    navigate(`/leads/${lead.id}`);
+                    setSearchOpen(false);
+                    setSearchQuery("");
+                  }}
+                  className={`w-full text-left px-4 py-3 flex items-start gap-3 hover:bg-slate-800 transition-colors ${i > 0 ? "border-t border-slate-800" : ""}`}
+                >
+                  <div className="h-7 w-7 rounded-lg bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 shrink-0 text-[11px] font-bold mt-0.5">
+                    {lead.name?.[0]?.toUpperCase() ?? "?"}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium text-slate-100 truncate">{lead.name}</div>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      {lead.company && (
+                        <span className="flex items-center gap-1 text-[11px] text-slate-400 truncate">
+                          <Building size={10} />{lead.company}
+                        </span>
+                      )}
+                      {lead.email && (
+                        <span className="flex items-center gap-1 text-[11px] text-slate-500 truncate">
+                          <Mail size={10} />{lead.email}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </button>
+              ))}
+              <div className="px-4 py-2 border-t border-slate-800 bg-slate-950/60 text-[10px] text-slate-600 flex justify-between">
+                <span>{searchResults.length} result{searchResults.length !== 1 ? "s" : ""}</span>
+                <span>↵ to open first · Esc to close</span>
+              </div>
+            </div>
+          )}
+
+          {/* No results state */}
+          {searchOpen && searchQuery.length >= 2 && !searchLoading && searchResults.length === 0 && (
+            <div className="absolute top-full mt-2 left-0 w-full bg-slate-900 border border-slate-700 rounded-xl shadow-2xl z-50 px-4 py-6 text-center text-sm text-slate-500 animate-in fade-in duration-150">
+              No leads match "{searchQuery}"
+            </div>
+          )}
         </div>
         {/* Mobile Search Icon */}
         <button className="sm:hidden text-slate-400">
-           <Search size={20} />
+          <Search size={20} />
         </button>
       </div>
 
@@ -257,7 +397,7 @@ export default function Topbar({ onMenuClick }: TopbarProps) {
             <div className="absolute right-0 top-full mt-2 w-48 rounded-xl bg-slate-900 border border-slate-700 shadow-2xl py-1 animate-in fade-in slide-in-from-top-2 duration-200">
               <div className="px-4 py-2 border-b border-slate-800 mb-1">
                  <p className="text-xs font-medium text-slate-200 truncate">{user.fullName}</p>
-                 <p className="text-[10px] text-slate-500 truncate">{user.email || "user@revenuela.com"}</p>
+                 <p className="text-[10px] text-slate-500 truncate">{user.email || "user@iqpipe.io"}</p>
               </div>
               
               <button
@@ -273,7 +413,8 @@ export default function Topbar({ onMenuClick }: TopbarProps) {
               
               <button
                 onClick={() => {
-                   setProfileOpen(false);
+                  navigate("/profile");
+                  setProfileOpen(false);
                 }}
                 className="w-full text-left px-4 py-2 text-sm text-slate-300 hover:bg-slate-800 hover:text-white flex items-center gap-2 transition-colors"
               >

@@ -31,7 +31,7 @@ export default function AssistantPanel({ isOpen, onClose }: AssistantPanelProps)
     {
       id: "m1",
       role: "assistant",
-      content: `Hey, I'm Revenuela — your GTM intelligence analyst.
+      content: `Hey, I'm iqpipe — your GTM intelligence analyst.
 
 I read your data across prospecting tools, outbound sequences, meetings, pipeline, and revenue.`,
     },
@@ -138,7 +138,7 @@ I read your data across prospecting tools, outbound sequences, meetings, pipelin
       <div className="h-14 flex items-center justify-between px-4 border-b border-slate-800">
         <div>
           <div className="text-sm font-semibold text-slate-50">
-            Revenuela Intelligence
+            iqpipe Intelligence
           </div>
           <div className="text-[11px] text-slate-400">
             Ask about performance, bottlenecks, and how to optimize.
@@ -204,7 +204,7 @@ I read your data across prospecting tools, outbound sequences, meetings, pipelin
             ref={textareaRef}
             rows={2}
             className="w-full text-sm bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none"
-            placeholder="Ask Revenuela..."
+            placeholder="Ask iqpipe..."
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
@@ -216,7 +216,7 @@ I read your data across prospecting tools, outbound sequences, meetings, pipelin
               disabled={!input.trim() || isThinking}
               className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full bg-indigo-500 disabled:bg-slate-700 text-[11px] font-medium text-white hover:bg-indigo-400 disabled:cursor-not-allowed"
             >
-              <span>{isThinking ? "Analyzing…" : "Ask Revenuela"}</span>
+              <span>{isThinking ? "Analyzing…" : "Ask iqpipe"}</span>
             </button>
           </div>
         </form>

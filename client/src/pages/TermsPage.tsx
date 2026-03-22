@@ -22,7 +22,7 @@ export default function TermsPage() {
                   1. Acceptance of terms
                 </h2>
                 <p>
-                  By creating an account, accessing or using Revenuela, you
+                  By creating an account, accessing or using iqpipe, you
                   agree to be bound by these Terms of Use. If you do not agree,
                   you may not use the service.
                 </p>
@@ -33,7 +33,7 @@ export default function TermsPage() {
                   2. The service
                 </h2>
                 <p>
-                  Revenuela provides a revenue analytics and GTM data platform
+                  iqpipe provides a revenue analytics and GTM data platform
                   that connects to tools you choose to integrate. We may update
                   or modify the service over time, including adding or removing
                   features.
@@ -65,7 +65,7 @@ export default function TermsPage() {
                   4. Customer data & connected tools
                 </h2>
                 <p className="mb-2">
-                  You retain all rights to the data you send to Revenuela from
+                  You retain all rights to the data you send to iqpipe from
                   connected tools (&quot;Customer Data&quot;). You grant us a
                   limited license to process Customer Data solely:
                 </p>
@@ -75,7 +75,7 @@ export default function TermsPage() {
                 </ul>
                 <p className="mt-2">
                   You are responsible for ensuring that you have the right to
-                  connect third-party tools and share data with Revenuela in
+                  connect third-party tools and share data with iqpipe in
                   accordance with their terms and applicable laws.
                 </p>
               </section>
@@ -87,7 +87,7 @@ export default function TermsPage() {
                 <p className="mb-2">You agree not to:</p>
                 <ul className="list-disc list-inside space-y-1">
                   <li>
-                    Use Revenuela for unlawful, harmful or fraudulent purposes.
+                    Use iqpipe for unlawful, harmful or fraudulent purposes.
                   </li>
                   <li>
                     Attempt to reverse engineer, interfere with or disrupt the
@@ -118,12 +118,12 @@ export default function TermsPage() {
                   7. Disclaimer & limitation of liability
                 </h2>
                 <p className="mb-2">
-                  Revenuela is provided on an &quot;as is&quot; and &quot;as
+                  iqpipe is provided on an &quot;as is&quot; and &quot;as
                   available&quot; basis. We do not guarantee that the service
                   will be uninterrupted or error-free.
                 </p>
                 <p>
-                  To the maximum extent permitted by law, Revenuela and its
+                  To the maximum extent permitted by law, iqpipe and its
                   affiliates will not be liable for indirect, incidental or
                   consequential damages, or for any loss of profits, revenue or
                   data arising from your use of the service.
@@ -149,10 +149,10 @@ export default function TermsPage() {
                 <p>
                   If you have questions about these Terms, contact us at{" "}
                   <a
-                    href="mailto:hello@revenuela.com"
+                    href="mailto:hello@iqpipe.io"
                     className="text-cyan-300 underline underline-offset-4"
                   >
-                    hello@revenuela.com
+                    hello@iqpipe.io
                   </a>
                   .
                 </p>
